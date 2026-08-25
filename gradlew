@@ -7,12 +7,12 @@ APP_BASE_NAME=${0##*/}
 # RSS Money Manager: isolate CodeOnTheGo/AndroidIDE Ubuntu ARM64 builds from
 # AndroidIDE's incompatible x86 Linux AAPT2 cache.
 RSS_MONEY_MANAGER_ROOT="${RSS_MONEY_MANAGER_ROOT:-/root/.local/share/rss-money-manager}"
-RSS_MONEY_MANAGER_ANDROIDIDE_HOME="/data/data/com.itsaky.androidide/files/home"
 RSS_MONEY_MANAGER_SDK="${RSS_MONEY_MANAGER_SDK:-$RSS_MONEY_MANAGER_ROOT/android-sdk}"
 
-# On ARM64 proot, always use an Ubuntu-local Gradle home. This prevents AGP
-# from discovering AndroidIDE's transformed x86 AAPT2 binaries.
-if [ "$(uname -m 2>/dev/null)" = "aarch64" ] && [ -d "$RSS_MONEY_MANAGER_ANDROIDIDE_HOME" ]; then
+# On ARM64 proot, ALWAYS use the Ubuntu-local Gradle home. Do not inherit
+# AndroidIDE's GRADLE_USER_HOME, because AGP can discover its incompatible
+# x86 Linux AAPT2 from that transformed cache.
+if [ "$(uname -m 2>/dev/null)" = "aarch64" ]; then
   GRADLE_USER_HOME="$RSS_MONEY_MANAGER_ROOT/gradle-home"
 elif [ -z "${GRADLE_USER_HOME:-}" ]; then
   GRADLE_USER_HOME="$APP_HOME/.gradle-ubuntu"
