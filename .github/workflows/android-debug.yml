@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
@@ -37,10 +37,25 @@ jobs:
       - name: Build debug APK
         run: ./gradlew --no-daemon --console=plain :app:assembleDebug
 
-      - name: Upload debug APK
+      - name: Upload debug APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: rss-money-manager-debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 14
+
+      - name: Create GitHub release with APK
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: debug-${{ github.run_number }}
+          name: RSS Money Manager Debug Build ${{ github.run_number }}
+          body: |
+            Automatic debug APK build from commit ${{ github.sha }}.
+
+            This release was created automatically by GitHub Actions.
+          files: app/build/outputs/apk/debug/app-debug.apk
+          generate_release_notes: false
+          prerelease: true
+          make_latest: false
