@@ -5,28 +5,28 @@ APP_HOME=$( cd -P "${APP_HOME:-./}" > /dev/null && printf '%s\n' "$PWD" ) || exi
 APP_BASE_NAME=${0##*/}
 
 # RSS Money Manager: CodeOnTheGo/AndroidIDE Ubuntu ARM64 build support.
-# Use a dedicated cache so the AndroidIDE cache cannot inject its incompatible AAPT2.
+# Keep the project's Gradle state isolated from AndroidIDE's shared cache.
 RSS_MONEY_MANAGER_ROOT="${RSS_MONEY_MANAGER_ROOT:-/root/.local/share/rss-money-manager}"
 RSS_MONEY_MANAGER_SDK="${RSS_MONEY_MANAGER_SDK:-$RSS_MONEY_MANAGER_ROOT/android-sdk}"
 
-# Never use AndroidIDE's shared ~/.gradle cache. It contains the x86_64/Linux
-# AAPT2 artifact that fails on ARM64 proot. A dedicated sibling cache remains
-# inside AndroidIDE's writable home, while keeping the project's toolchain isolated.
-if [ -z "${GRADLE_USER_HOME:-}" ]; then
-  if [ -d "/data/data/com.itsaky.androidide/files/home" ]; then
-    GRADLE_USER_HOME="/data/data/com.itsaky.androidide/files/home/.gradle-rss-money-manager"
-  else
-    GRADLE_USER_HOME="$RSS_MONEY_MANAGER_ROOT/gradle-home"
-  fi
+# Always override GRADLE_USER_HOME. AndroidIDE may export its shared cache
+# into the terminal environment, and that cache contains an incompatible
+# Linux AAPT2 binary for the ARM64 proot environment.
+if [ -d "/data/data/com.itsaky.androidide/files/home" ]; then
+  GRADLE_USER_HOME="/data/data/com.itsaky.androidide/files/home/.gradle-rss-money-manager"
+else
+  GRADLE_USER_HOME="$RSS_MONEY_MANAGER_ROOT/gradle-home"
 fi
 export GRADLE_USER_HOME
 
+# Prefer the known-good Ubuntu-local API 36 SDK when it exists.
 if [ -f "$RSS_MONEY_MANAGER_SDK/platforms/android-36/android.jar" ]; then
   ANDROID_HOME="$RSS_MONEY_MANAGER_SDK"
   ANDROID_SDK_ROOT="$RSS_MONEY_MANAGER_SDK"
   export ANDROID_HOME ANDROID_SDK_ROOT
 fi
 
+# Prefer the verified ARM64 AAPT2. Never use AGP's Maven AAPT2 on ARM64.
 RSS_MONEY_MANAGER_AAPT2="${RSS_MONEY_MANAGER_AAPT2:-$RSS_MONEY_MANAGER_ROOT/android-tools/aapt2}"
 if [ ! -x "$RSS_MONEY_MANAGER_AAPT2" ] && [ -x "$RSS_MONEY_MANAGER_ROOT/android-tools/aapt2-v35-arm64-v8a" ]; then
   RSS_MONEY_MANAGER_AAPT2="$RSS_MONEY_MANAGER_ROOT/android-tools/aapt2-v35-arm64-v8a"
@@ -40,8 +40,10 @@ if [ ! -x "$RSS_MONEY_MANAGER_AAPT2" ]; then
   done
 fi
 
-# The override is written into the dedicated cache and passed directly to Gradle.
-# This prevents AGP from selecting AndroidIDE's cached Linux AAPT2.
+MAX_FD=maximum
+warn () { echo "$*" >&2; }
+die () { echo >&2; echo "$*" >&2; echo >&2; exit 1; }
+
 if [ -x "$RSS_MONEY_MANAGER_AAPT2" ]; then
   mkdir -p "$GRADLE_USER_HOME" || die "Could not create GRADLE_USER_HOME: $GRADLE_USER_HOME"
   AAPT2_PROPS="$GRADLE_USER_HOME/gradle.properties"
@@ -54,12 +56,8 @@ if [ -x "$RSS_MONEY_MANAGER_AAPT2" ]; then
   else
     printf 'android.aapt2FromMavenOverride=%s\n' "$RSS_MONEY_MANAGER_AAPT2" > "$AAPT2_PROPS"
   fi
-  set -- "-Pandroid.aapt2FromMavenOverride=$RSS_MONEY_MANAGER_AAPT2" "$@"
 fi
 
-MAX_FD=maximum
-warn () { echo "$*" >&2; }
-die () { echo >&2; echo "$*" >&2; echo >&2; exit 1; }
 cygwin=false; msys=false; darwin=false; nonstop=false
 case "$( uname )" in
   CYGWIN* ) cygwin=true ;; Darwin* ) darwin=true ;;
@@ -91,6 +89,9 @@ if "$cygwin" || "$msys"; then
 fi
 
 DEFAULT_JVM_OPTS='"-Xmx64m" "-Xms64m"'
+if [ -x "$RSS_MONEY_MANAGER_AAPT2" ]; then
+  set -- "-Pandroid.aapt2FromMavenOverride=$RSS_MONEY_MANAGER_AAPT2" "$@"
+fi
 set -- "-Dorg.gradle.appname=$APP_BASE_NAME" -classpath "$CLASSPATH" org.gradle.wrapper.GradleWrapperMain "$@"
 command -v xargs >/dev/null 2>&1 || die "xargs is not available"
 eval "set -- $(printf '%s\n' "$DEFAULT_JVM_OPTS $JAVA_OPTS $GRADLE_OPTS" | xargs -n1 | sed ' s~[^-[:alnum:]+,./:=@_]~\\&~g; ' | tr '\n' ' ')" '"$@"'
