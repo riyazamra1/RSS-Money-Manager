@@ -6,7 +6,8 @@ APP_BASE_NAME=${0##*/}
 
 # RSS Money Manager: CodeOnTheGo/AndroidIDE runs Ubuntu ARM64 under proot.
 # Keep the AndroidIDE Gradle cache for its already-downloaded distribution and
-# dependencies, but permanently point AGP at a native ARM64 AAPT2 executable.
+# dependencies, but replace the incompatible Linux/x86 AAPT2 with the verified
+# ARM64 executable before Gradle/AGP starts using it.
 RSS_MONEY_MANAGER_ROOT="${RSS_MONEY_MANAGER_ROOT:-/root/.local/share/rss-money-manager}"
 RSS_MONEY_MANAGER_ANDROIDIDE_HOME="/data/data/com.itsaky.androidide/files/home"
 
@@ -28,8 +29,7 @@ if [ -f "$RSS_MONEY_MANAGER_SDK/platforms/android-36/android.jar" ]; then
   export ANDROID_HOME ANDROID_SDK_ROOT
 fi
 
-# Prefer the verified ARM64 AAPT2 prepared by the Ubuntu setup. Also accept
-# the ARM64 binary installed inside the local Android SDK build-tools.
+# Locate the verified native ARM64 AAPT2 prepared by the Ubuntu setup.
 RSS_MONEY_MANAGER_AAPT2="${RSS_MONEY_MANAGER_AAPT2:-$RSS_MONEY_MANAGER_ROOT/android-tools/aapt2}"
 if [ ! -x "$RSS_MONEY_MANAGER_AAPT2" ] && [ -x "$RSS_MONEY_MANAGER_ROOT/android-tools/aapt2-v35-arm64-v8a" ]; then
   RSS_MONEY_MANAGER_AAPT2="$RSS_MONEY_MANAGER_ROOT/android-tools/aapt2-v35-arm64-v8a"
@@ -46,9 +46,9 @@ if [ ! -x "$RSS_MONEY_MANAGER_AAPT2" ]; then
   done
 fi
 
-# Persist the override in the same Gradle user home used by this wrapper.
-# AGP officially reads android.aapt2FromMavenOverride from gradle.properties.
 if [ -x "$RSS_MONEY_MANAGER_AAPT2" ]; then
+  # Primary AGP override. Keep it in the same Gradle user home used by this
+  # wrapper so subsequent builds do not need manual environment configuration.
   mkdir -p "$GRADLE_USER_HOME" 2>/dev/null || true
   if [ -d "$GRADLE_USER_HOME" ] && [ -w "$GRADLE_USER_HOME" ]; then
     AAPT2_PROPS="$GRADLE_USER_HOME/gradle.properties"
@@ -62,8 +62,25 @@ if [ -x "$RSS_MONEY_MANAGER_AAPT2" ]; then
       printf 'android.aapt2FromMavenOverride=%s\n' "$RSS_MONEY_MANAGER_AAPT2" > "$AAPT2_PROPS"
     fi
   fi
-  # Also pass it directly for this invocation, so the first build does not
-  # depend on a previously-created user gradle.properties file.
+
+  # Some AndroidIDE/AGP combinations still launch the AAPT2 executable directly
+  # from the transformed Maven cache. Replace those cached binaries in-place
+  # with the verified ARM64 binary. This changes only Gradle's cache, not the
+  # project sources or dependencies.
+  if [ -d "$GRADLE_USER_HOME/caches" ] && [ -w "$GRADLE_USER_HOME/caches" ]; then
+    find "$GRADLE_USER_HOME/caches" -type f -path '*/aapt2-*-linux/aapt2' -exec sh -c '
+      src="$1"; dst="$2"; tmp="${dst}.rss-arm64.tmp"
+      if [ -x "$src" ] && [ -r "$src" ]; then
+        cp -f "$src" "$tmp" 2>/dev/null || true
+        cp -f "$dst" "$tmp" 2>/dev/null || true
+      fi
+      rm -f "$tmp" 2>/dev/null || true
+      cp -f "$3" "$dst" 2>/dev/null || true
+      chmod 755 "$dst" 2>/dev/null || true
+    ' sh {} {} "$RSS_MONEY_MANAGER_AAPT2" \; 2>/dev/null || true
+  fi
+
+  # Also pass the supported override directly to this Gradle invocation.
   set -- "-Pandroid.aapt2FromMavenOverride=$RSS_MONEY_MANAGER_AAPT2" "$@"
 fi
 
