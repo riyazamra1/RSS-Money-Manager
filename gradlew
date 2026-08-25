@@ -4,16 +4,18 @@ APP_HOME=${0%"${0##*/}"}
 APP_HOME=$( cd -P "${APP_HOME:-./}" > /dev/null && printf '%s\n' "$PWD" ) || exit
 APP_BASE_NAME=${0##*/}
 
-# RSS Money Manager: isolate CodeOnTheGo/AndroidIDE Ubuntu ARM64 builds from
-# AndroidIDE's incompatible x86 Linux AAPT2 cache.
+# RSS Money Manager: CodeOnTheGo/AndroidIDE Ubuntu ARM64 build support.
+# Keep Gradle's distribution/cache in AndroidIDE's existing writable home,
+# while forcing AGP to use the verified ARM64 AAPT2 binary below.
 RSS_MONEY_MANAGER_ROOT="${RSS_MONEY_MANAGER_ROOT:-/root/.local/share/rss-money-manager}"
 RSS_MONEY_MANAGER_SDK="${RSS_MONEY_MANAGER_SDK:-$RSS_MONEY_MANAGER_ROOT/android-sdk}"
 
-# On ARM64 proot, ALWAYS use the Ubuntu-local Gradle home. Do not inherit
-# AndroidIDE's GRADLE_USER_HOME, because AGP can discover its incompatible
-# x86 Linux AAPT2 from that transformed cache.
+# The AndroidIDE Gradle home already contains the Gradle 8.14.3 distribution
+# and dependencies needed by this project. Do not create a new wrapper cache
+# under /root, because this proot environment may not allow that path to be
+# created from CodeOnTheGo's terminal.
 if [ "$(uname -m 2>/dev/null)" = "aarch64" ]; then
-  GRADLE_USER_HOME="$RSS_MONEY_MANAGER_ROOT/gradle-home"
+  GRADLE_USER_HOME="/data/data/com.itsaky.androidide/files/home/.gradle"
 elif [ -z "${GRADLE_USER_HOME:-}" ]; then
   GRADLE_USER_HOME="$APP_HOME/.gradle-ubuntu"
 fi
