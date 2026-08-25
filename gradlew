@@ -89,6 +89,26 @@ APP_BASE_NAME=${0##*/}
 APP_HOME=$( cd -P "${APP_HOME:-./}" > /dev/null && printf '%s
 ' "$PWD" ) || exit
 
+# AndroidIDE cache can contain a host-incompatible AAPT2 when this project is
+# built from an ARM64 Ubuntu proot. Use the normal Ubuntu cache and local tool.
+case "${GRADLE_USER_HOME:-}" in
+    /data/data/com.itsaky.androidide/*)
+        GRADLE_USER_HOME="${HOME:-$APP_HOME}/.gradle"
+        export GRADLE_USER_HOME
+        ;;
+esac
+
+RSS_MONEY_MANAGER_SDK="${RSS_MONEY_MANAGER_SDK:-${HOME:-$APP_HOME}/.local/share/rss-money-manager/android-sdk}"
+if [ -z "${ANDROID_HOME:-}" ] && [ -f "$RSS_MONEY_MANAGER_SDK/platforms/android-36/android.jar" ]; then
+    ANDROID_HOME="$RSS_MONEY_MANAGER_SDK"
+    export ANDROID_HOME
+fi
+
+RSS_MONEY_MANAGER_AAPT2="${RSS_MONEY_MANAGER_AAPT2:-${HOME:-$APP_HOME}/.local/share/rss-money-manager/android-tools/aapt2}"
+if [ -x "$RSS_MONEY_MANAGER_AAPT2" ]; then
+    set -- "-Pandroid.aapt2FromMavenOverride=$RSS_MONEY_MANAGER_AAPT2" "$@"
+fi
+
 # Use the maximum available, or set MAX_FD != -1 to use that value.
 MAX_FD=maximum
 
