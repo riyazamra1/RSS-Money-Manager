@@ -5,19 +5,19 @@ APP_HOME=$( cd -P "${APP_HOME:-./}" > /dev/null && printf '%s\n' "$PWD" ) || exi
 APP_BASE_NAME=${0##*/}
 
 # RSS Money Manager: CodeOnTheGo/AndroidIDE Ubuntu ARM64 build support.
-# Keep Gradle's distribution/cache in AndroidIDE's existing writable home,
-# while forcing AGP to use the verified ARM64 AAPT2 binary below.
+# Use a dedicated cache so the AndroidIDE cache cannot inject its incompatible AAPT2.
 RSS_MONEY_MANAGER_ROOT="${RSS_MONEY_MANAGER_ROOT:-/root/.local/share/rss-money-manager}"
 RSS_MONEY_MANAGER_SDK="${RSS_MONEY_MANAGER_SDK:-$RSS_MONEY_MANAGER_ROOT/android-sdk}"
 
-# The AndroidIDE Gradle home already contains the Gradle 8.14.3 distribution
-# and dependencies needed by this project. Do not create a new wrapper cache
-# under /root, because this proot environment may not allow that path to be
-# created from CodeOnTheGo's terminal.
-if [ "$(uname -m 2>/dev/null)" = "aarch64" ]; then
-  GRADLE_USER_HOME="/data/data/com.itsaky.androidide/files/home/.gradle"
-elif [ -z "${GRADLE_USER_HOME:-}" ]; then
-  GRADLE_USER_HOME="$APP_HOME/.gradle-ubuntu"
+# Never use AndroidIDE's shared ~/.gradle cache. It contains the x86_64/Linux
+# AAPT2 artifact that fails on ARM64 proot. A dedicated sibling cache remains
+# inside AndroidIDE's writable home, while keeping the project's toolchain isolated.
+if [ -z "${GRADLE_USER_HOME:-}" ]; then
+  if [ -d "/data/data/com.itsaky.androidide/files/home" ]; then
+    GRADLE_USER_HOME="/data/data/com.itsaky.androidide/files/home/.gradle-rss-money-manager"
+  else
+    GRADLE_USER_HOME="$RSS_MONEY_MANAGER_ROOT/gradle-home"
+  fi
 fi
 export GRADLE_USER_HOME
 
@@ -40,8 +40,10 @@ if [ ! -x "$RSS_MONEY_MANAGER_AAPT2" ]; then
   done
 fi
 
+# The override is written into the dedicated cache and passed directly to Gradle.
+# This prevents AGP from selecting AndroidIDE's cached Linux AAPT2.
 if [ -x "$RSS_MONEY_MANAGER_AAPT2" ]; then
-  mkdir -p "$GRADLE_USER_HOME"
+  mkdir -p "$GRADLE_USER_HOME" || die "Could not create GRADLE_USER_HOME: $GRADLE_USER_HOME"
   AAPT2_PROPS="$GRADLE_USER_HOME/gradle.properties"
   if [ -f "$AAPT2_PROPS" ]; then
     if grep -q '^android\.aapt2FromMavenOverride=' "$AAPT2_PROPS"; then
