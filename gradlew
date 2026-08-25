@@ -4,9 +4,9 @@ APP_HOME=${0%"${0##*/}"}
 APP_HOME=$( cd -P "${APP_HOME:-./}" > /dev/null && printf '%s\n' "$PWD" ) || exit
 APP_BASE_NAME=${0##*/}
 
-# RSS Money Manager: AndroidIDE/CodeOnTheGo runs Ubuntu ARM64 under proot.
-# AndroidIDE's Gradle home is writable and contains the Gradle distribution;
-# use it automatically, while overriding its incompatible x86 AAPT2 binary.
+# RSS Money Manager: CodeOnTheGo/AndroidIDE runs Ubuntu ARM64 under proot.
+# Keep the AndroidIDE Gradle cache for its already-downloaded distribution and
+# dependencies, but permanently point AGP at a native ARM64 AAPT2 executable.
 RSS_MONEY_MANAGER_ROOT="${RSS_MONEY_MANAGER_ROOT:-/root/.local/share/rss-money-manager}"
 RSS_MONEY_MANAGER_ANDROIDIDE_HOME="/data/data/com.itsaky.androidide/files/home"
 
@@ -28,8 +28,42 @@ if [ -f "$RSS_MONEY_MANAGER_SDK/platforms/android-36/android.jar" ]; then
   export ANDROID_HOME ANDROID_SDK_ROOT
 fi
 
+# Prefer the verified ARM64 AAPT2 prepared by the Ubuntu setup. Also accept
+# the ARM64 binary installed inside the local Android SDK build-tools.
 RSS_MONEY_MANAGER_AAPT2="${RSS_MONEY_MANAGER_AAPT2:-$RSS_MONEY_MANAGER_ROOT/android-tools/aapt2}"
+if [ ! -x "$RSS_MONEY_MANAGER_AAPT2" ] && [ -x "$RSS_MONEY_MANAGER_ROOT/android-tools/aapt2-v35-arm64-v8a" ]; then
+  RSS_MONEY_MANAGER_AAPT2="$RSS_MONEY_MANAGER_ROOT/android-tools/aapt2-v35-arm64-v8a"
+fi
+if [ ! -x "$RSS_MONEY_MANAGER_AAPT2" ]; then
+  for candidate in \
+    "$RSS_MONEY_MANAGER_SDK/build-tools/35.0.0/aapt2" \
+    "$RSS_MONEY_MANAGER_SDK/build-tools/35.0.1/aapt2" \
+    "$RSS_MONEY_MANAGER_SDK/build-tools/36.0.0/aapt2"; do
+    if [ -x "$candidate" ]; then
+      RSS_MONEY_MANAGER_AAPT2="$candidate"
+      break
+    fi
+  done
+fi
+
+# Persist the override in the same Gradle user home used by this wrapper.
+# AGP officially reads android.aapt2FromMavenOverride from gradle.properties.
 if [ -x "$RSS_MONEY_MANAGER_AAPT2" ]; then
+  mkdir -p "$GRADLE_USER_HOME" 2>/dev/null || true
+  if [ -d "$GRADLE_USER_HOME" ] && [ -w "$GRADLE_USER_HOME" ]; then
+    AAPT2_PROPS="$GRADLE_USER_HOME/gradle.properties"
+    if [ -f "$AAPT2_PROPS" ]; then
+      if grep -q '^android\.aapt2FromMavenOverride=' "$AAPT2_PROPS"; then
+        sed -i "s#^android\.aapt2FromMavenOverride=.*#android.aapt2FromMavenOverride=$RSS_MONEY_MANAGER_AAPT2#" "$AAPT2_PROPS"
+      else
+        printf '\nandroid.aapt2FromMavenOverride=%s\n' "$RSS_MONEY_MANAGER_AAPT2" >> "$AAPT2_PROPS"
+      fi
+    else
+      printf 'android.aapt2FromMavenOverride=%s\n' "$RSS_MONEY_MANAGER_AAPT2" > "$AAPT2_PROPS"
+    fi
+  fi
+  # Also pass it directly for this invocation, so the first build does not
+  # depend on a previously-created user gradle.properties file.
   set -- "-Pandroid.aapt2FromMavenOverride=$RSS_MONEY_MANAGER_AAPT2" "$@"
 fi
 
