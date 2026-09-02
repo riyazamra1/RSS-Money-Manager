@@ -135,7 +135,7 @@ class MainActivity : AppCompatActivity() {
             }
             @Suppress("DEPRECATION")
             startActivityForResult(intent, PHOTO_REQUEST)
-            photoButton.text = "📷  Product photo selected"
+            photoButton.setText("📷  Product photo selected")
         }
 
         val memo = field("Memo (optional)", "", InputType.TYPE_CLASS_TEXT)
@@ -296,6 +296,7 @@ class MainActivity : AppCompatActivity() {
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode == PHOTO_REQUEST && resultCode == RESULT_OK) data?.data?.let { uri ->
+            photoUriHolder = uri
             contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
     }
@@ -340,6 +341,8 @@ class MainActivity : AppCompatActivity() {
         override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) = callback()
         override fun afterTextChanged(s: android.text.Editable?) = Unit
     }
+
+    private var photoUriHolder: Uri? = null
 
     companion object {
         private const val PHOTO_REQUEST = 7001
