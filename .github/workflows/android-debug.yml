@@ -27,9 +27,8 @@ jobs:
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
-
-      - name: Install Android SDK packages
-        run: sdkmanager "platforms;android-36" "build-tools;35.0.0"
+        with:
+          packages: 'platform-tools platforms;android-36 build-tools;35.0.0'
 
       - name: Make Gradle wrapper executable
         run: chmod +x gradlew
