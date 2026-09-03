@@ -21,7 +21,7 @@ object MagicNavigation {
                 onSelected(index)
             }
         }
-        select(indicator, items, 0, animate = false)
+        indicator.post { select(indicator, items, 0, animate = false) }
     }
 
     private fun select(
@@ -50,18 +50,22 @@ object MagicNavigation {
 
         indicator.post {
             val target = items[selected]
-            val parent = indicator.parent as View
             val targetWidth = target.width
             val targetLeft = target.left
             if (!animate) {
                 indicator.layoutParams = indicator.layoutParams.apply { width = targetWidth }
                 indicator.x = targetLeft.toFloat()
+                indicator.requestLayout()
                 return@post
             }
+
+            val oldX = indicator.x
+            indicator.layoutParams = indicator.layoutParams.apply { width = targetWidth }
+            indicator.requestLayout()
             AnimatorSet().apply {
                 playTogether(
-                    ObjectAnimator.ofFloat(indicator, View.X, indicator.x, targetLeft.toFloat()),
-                    ObjectAnimator.ofInt(indicator, "width", indicator.width, targetWidth)
+                    ObjectAnimator.ofFloat(indicator, View.X, oldX, targetLeft.toFloat()),
+                    ObjectAnimator.ofFloat(indicator, View.SCALE_X, .82f, 1.04f, 1f)
                 )
                 duration = DURATION
                 interpolator = OvershootInterpolator(1.0f)
