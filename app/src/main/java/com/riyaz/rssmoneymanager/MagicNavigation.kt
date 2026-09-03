@@ -2,6 +2,7 @@ package com.riyaz.rssmoneymanager
 
 import android.animation.AnimatorSet
 import android.animation.ObjectAnimator
+import android.view.MotionEvent
 import android.view.View
 import android.view.animation.OvershootInterpolator
 import android.widget.TextView
@@ -16,9 +17,20 @@ object MagicNavigation {
         onSelected: (Int) -> Unit
     ) {
         items.forEachIndexed { index, item ->
-            item.setOnClickListener {
-                select(indicator, items, index)
-                onSelected(index)
+            if (index == 2) {
+                // Add is also wired by MainActivity to open the transaction dialog.
+                item.setOnTouchListener { _, event ->
+                    if (event.actionMasked == MotionEvent.ACTION_UP) {
+                        select(indicator, items, index)
+                        onSelected(index)
+                    }
+                    false
+                }
+            } else {
+                item.setOnClickListener {
+                    select(indicator, items, index)
+                    onSelected(index)
+                }
             }
         }
         indicator.post { select(indicator, items, 0, animate = false) }
@@ -58,7 +70,6 @@ object MagicNavigation {
                 indicator.requestLayout()
                 return@post
             }
-
             val oldX = indicator.x
             indicator.layoutParams = indicator.layoutParams.apply { width = targetWidth }
             indicator.requestLayout()
