@@ -11,14 +11,9 @@ import android.widget.TextView
 object MagicNavigation {
     private const val DURATION = 260L
 
-    fun setup(
-        indicator: View,
-        vararg items: TextView,
-        onSelected: (Int) -> Unit
-    ) {
+    fun setup(indicator: View, vararg items: TextView, onSelected: (Int) -> Unit) {
         items.forEachIndexed { index, item ->
             if (index == 2) {
-                // Add is also wired by MainActivity to open the transaction dialog.
                 item.setOnTouchListener { _, event ->
                     if (event.actionMasked == MotionEvent.ACTION_UP) {
                         select(indicator, items, index)
@@ -29,19 +24,29 @@ object MagicNavigation {
             } else {
                 item.setOnClickListener {
                     select(indicator, items, index)
-                    onSelected(index)
+                    showDestination(item, index)
+                    if (index == 0) onSelected(index)
                 }
             }
         }
         indicator.post { select(indicator, items, 0, animate = false) }
     }
 
-    private fun select(
-        indicator: View,
-        items: Array<out TextView>,
-        selected: Int,
-        animate: Boolean = true
-    ) {
+    private fun showDestination(source: View, index: Int) {
+        val root = source.rootView
+        val home = root.findViewById<View>(R.id.home_screen)
+        val transactions = root.findViewById<View>(R.id.transactions_screen)
+        val accounts = root.findViewById<View>(R.id.accounts_screen)
+        val more = root.findViewById<View>(R.id.more_screen)
+        val destination = when (index) { 0 -> home; 1 -> transactions; 3 -> accounts; 4 -> more; else -> null } ?: return
+        listOf(home, transactions, accounts, more).forEach { if (it != destination) it.visibility = View.GONE }
+        destination.visibility = View.VISIBLE
+        destination.alpha = 0f
+        destination.translationY = 18f
+        destination.animate().alpha(1f).translationY(0f).setDuration(DURATION).start()
+    }
+
+    private fun select(indicator: View, items: Array<out TextView>, selected: Int, animate: Boolean = true) {
         items.forEachIndexed { index, item ->
             val active = index == selected
             item.isSelected = active
@@ -59,7 +64,6 @@ object MagicNavigation {
                 }
             }
         }
-
         indicator.post {
             val target = items[selected]
             val targetWidth = target.width
