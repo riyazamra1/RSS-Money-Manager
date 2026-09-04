@@ -10,8 +10,12 @@ import android.widget.TextView
 /** CSS-like motion implemented with native Android animations for a lightweight native app. */
 object MagicNavigation {
     private const val DURATION = 260L
+    private var indicatorRef: View? = null
+    private var itemsRef: Array<out TextView>? = null
 
     fun setup(indicator: View, vararg items: TextView, onSelected: (Int) -> Unit) {
+        indicatorRef = indicator
+        itemsRef = items
         items.forEachIndexed { index, item ->
             if (index == 2) {
                 item.setOnTouchListener { _, event ->
@@ -25,11 +29,19 @@ object MagicNavigation {
                 item.setOnClickListener {
                     select(indicator, items, index)
                     showDestination(item, index)
-                    if (index == 0) onSelected(index)
+                    if (index == 0 || index == 1 || index == 3 || index == 4) onSelected(index)
                 }
             }
         }
         indicator.post { select(indicator, items, 0, animate = false) }
+    }
+
+    fun selectTab(index: Int) {
+        val indicator = indicatorRef ?: return
+        val items = itemsRef ?: return
+        if (index !in items.indices) return
+        select(indicator, items, index)
+        if (index != 2) showDestination(items[index], index)
     }
 
     private fun showDestination(source: View, index: Int) {
