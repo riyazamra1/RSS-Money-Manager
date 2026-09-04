@@ -20,6 +20,35 @@
                     <LinearLayout android:id="@+id/recent_container" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" />
                 </LinearLayout>
             </ScrollView>
+            <ScrollView android:id="@+id/transactions_screen" android:layout_width="match_parent" android:layout_height="match_parent" android:visibility="gone" android:fillViewport="true">
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="20dp">
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Transactions" android:textSize="28sp" android:textStyle="bold" />
+                    <TextView android:id="@+id/transactions_summary" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="4dp" android:text="All your income and expenses" android:textSize="14sp" />
+                    <LinearLayout android:id="@+id/transactions_container" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="18dp" android:orientation="vertical" />
+                    <TextView android:id="@+id/transactions_empty" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center" android:padding="48dp" android:text="No transactions yet." android:textSize="15sp" />
+                </LinearLayout>
+            </ScrollView>
+            <ScrollView android:id="@+id/accounts_screen" android:layout_width="match_parent" android:layout_height="match_parent" android:visibility="gone" android:fillViewport="true">
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="20dp">
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Accounts & Wallets" android:textSize="28sp" android:textStyle="bold" />
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="4dp" android:text="Manage where your money is stored" android:textSize="14sp" />
+                    <LinearLayout android:id="@+id/accounts_container" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="18dp" android:orientation="vertical" />
+                    <Button android:id="@+id/add_wallet_button" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="＋ Add Wallet" />
+                </LinearLayout>
+            </ScrollView>
+            <ScrollView android:id="@+id/more_screen" android:layout_width="match_parent" android:layout_height="match_parent" android:visibility="gone" android:fillViewport="true">
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="20dp">
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="More" android:textSize="28sp" android:textStyle="bold" />
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="4dp" android:text="Tools, planning and settings" android:textSize="14sp" />
+                    <Button android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="20dp" android:text="Budgets" />
+                    <Button android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Savings Goals" />
+                    <Button android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Debt Tracking" />
+                    <Button android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Categories" />
+                    <Button android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Search" />
+                    <Button android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Export / Backup" />
+                    <Button android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Settings" />
+                </LinearLayout>
+            </ScrollView>
         </FrameLayout>
         <FrameLayout android:id="@+id/bottom_navigation_shell" android:layout_width="match_parent" android:layout_height="76dp" android:paddingStart="10dp" android:paddingEnd="10dp" android:paddingTop="6dp" android:paddingBottom="8dp">
             <View android:id="@+id/nav_active_indicator" android:layout_width="0dp" android:layout_height="3dp" android:layout_gravity="top|start" android:background="?attr/colorPrimary" />
