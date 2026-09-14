@@ -24,6 +24,8 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+import org.json.JSONArray
+import org.json.JSONObject
 
 class MainActivity : AppCompatActivity() {
     private var _binding: ActivityMainBinding? = null
@@ -34,6 +36,7 @@ class MainActivity : AppCompatActivity() {
     private val recentTransactions = mutableListOf<Transaction>()
     private val categories = listOf("House Expenses", "Food", "Transport", "Bills", "Shopping", "Salary", "Other")
     private val wallets = listOf("Cash", "Bank", "Card", "Savings", "Other")
+    private val prefs by lazy { getSharedPreferences("money_manager", MODE_PRIVATE) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         installSplashScreen()
@@ -42,6 +45,7 @@ class MainActivity : AppCompatActivity() {
         setContentView(binding.root)
         setupMagicNavigation()
         binding.addTransactionButton.setOnClickListener { showTransactionDialog() }
+        loadPersistedState()
         renderDashboard()
         renderTransactions()
     }
@@ -251,6 +255,7 @@ class MainActivity : AppCompatActivity() {
                     }
                 }
 
+                persistState()
                 renderDashboard()
                 renderTransactions()
                 dialog.dismiss()
@@ -300,6 +305,82 @@ class MainActivity : AppCompatActivity() {
                 target.text = formatDateTime(calendar.timeInMillis)
             }, calendar.get(Calendar.HOUR_OF_DAY), calendar.get(Calendar.MINUTE), true).show()
         }, calendar.get(Calendar.YEAR), calendar.get(Calendar.MONTH), calendar.get(Calendar.DAY_OF_MONTH)).show()
+    }
+
+    private fun persistState() {
+        val transactionsJson = JSONArray()
+        recentTransactions.forEach { t ->
+            transactionsJson.put(JSONObject().apply {
+                put("type", t.type)
+                put("count", t.count)
+                put("unitMinor", t.unitMinor)
+                put("totalMinor", t.totalMinor)
+                put("description", t.description)
+                put("category", t.category)
+                put("wallet", t.wallet)
+                put("memo", t.memo)
+                put("recurring", t.recurring)
+                val items = JSONArray()
+                t.items.forEach { item ->
+                    items.put(JSONObject().apply {
+                        put("name", item.name)
+                        put("quantity", item.quantity)
+                        put("unitMinor", item.unitMinor)
+                        put("totalMinor", item.totalMinor)
+                    })
+                }
+                put("items", items)
+            })
+        }
+        prefs.edit()
+            .putLong("balanceMinor", balanceMinor)
+            .putLong("incomeMinor", incomeMinor)
+            .putLong("expenseMinor", expenseMinor)
+            .putString("transactions", transactionsJson.toString())
+            .apply()
+    }
+
+    private fun loadPersistedState() {
+        balanceMinor = prefs.getLong("balanceMinor", 0L)
+        incomeMinor = prefs.getLong("incomeMinor", 0L)
+        expenseMinor = prefs.getLong("expenseMinor", 0L)
+        recentTransactions.clear()
+        val raw = prefs.getString("transactions", null) ?: return
+        try {
+            val transactions = JSONArray(raw)
+            for (i in 0 until transactions.length()) {
+                val obj = transactions.getJSONObject(i)
+                val itemsJson = obj.optJSONArray("items") ?: JSONArray()
+                val items = buildList {
+                    for (j in 0 until itemsJson.length()) {
+                        val item = itemsJson.getJSONObject(j)
+                        add(TransactionItem(
+                            item.optString("name"),
+                            item.optLong("quantity", 1L),
+                            item.optLong("unitMinor", 0L),
+                            item.optLong("totalMinor", 0L)
+                        ))
+                    }
+                }
+                recentTransactions.add(Transaction(
+                    obj.optString("type"),
+                    obj.optLong("count", 1L),
+                    obj.optLong("unitMinor", 0L),
+                    obj.optLong("totalMinor", 0L),
+                    obj.optString("description"),
+                    obj.optString("category"),
+                    obj.optString("wallet"),
+                    obj.optString("memo"),
+                    items,
+                    obj.optBoolean("recurring", false)
+                ))
+            }
+        } catch (_: Exception) {
+            recentTransactions.clear()
+            balanceMinor = 0L
+            incomeMinor = 0L
+            expenseMinor = 0L
+        }
     }
 
     private fun renderDashboard() {
