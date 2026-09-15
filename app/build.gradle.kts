@@ -4,6 +4,7 @@ import java.io.FileInputStream
 plugins {
     id("com.android.application") version "8.11.0"
     kotlin("android") version "1.9.22"
+    kotlin("kapt") version "1.9.22"
 }
 
 val keystorePropsFile = rootProject.file("release.properties")
@@ -93,7 +94,6 @@ android {
             resources.pickFirsts.add("META-INF/kotlin-project-structure-metadata.json")
             resources.merges.add("commonMain/default/manifest")
             resources.merges.add("nonJvmMain/default/manifest")
-            resources.merges.add("nativeMain/default/manifest")
         }
     }
 
@@ -105,7 +105,6 @@ android {
             force("androidx.collection:collection:1.4.2")
             force("androidx.annotation:annotation:1.8.1")
             force("androidx.core:core-ktx:1.8.0")
-            force("androidx.lifecycle:lifecycle-runtime-ktx:2.3.1")
             force("androidx.collection:collection-ktx:1.4.2")
         }
     }
@@ -126,4 +125,6 @@ dependencies {
     implementation("androidx.startup:startup-runtime:1.1.1")
     implementation("androidx.interpolator:interpolator:1.0.0")
     implementation("androidx.core:core-splashscreen:1.0.1")
+    implementation("androidx.room:room-runtime:2.6.1")
+    kapt("androidx.room:room-compiler:2.6.1")
 }
