@@ -14,20 +14,24 @@ class RssMoneyManagerApplication : Application() {
         val prefs = getSharedPreferences("money_manager", MODE_PRIVATE)
         val dao = AppDatabase.getInstance(this).appStateDao()
 
-        executor.execute {
-            val roomState = dao.getState()
-            if (roomState != null) {
-                restoring = true
-                prefs.edit()
-                    .putLong("balanceMinor", roomState.balanceMinor)
-                    .putLong("incomeMinor", roomState.incomeMinor)
-                    .putLong("expenseMinor", roomState.expenseMinor)
-                    .putString("transactions", roomState.transactionsJson)
-                    .apply()
-                restoring = false
-            } else {
-                migratePreferencesToRoom(prefs, dao)
-            }
+        try {
+            executor.submit {
+                val roomState = dao.getState()
+                if (roomState != null) {
+                    restoring = true
+                    prefs.edit()
+                        .putLong("balanceMinor", roomState.balanceMinor)
+                        .putLong("incomeMinor", roomState.incomeMinor)
+                        .putLong("expenseMinor", roomState.expenseMinor)
+                        .putString("transactions", roomState.transactionsJson)
+                        .commit()
+                    restoring = false
+                } else {
+                    migratePreferencesToRoom(prefs, dao)
+                }
+            }.get()
+        } catch (_: Exception) {
+            // Keep the existing SharedPreferences state if Room cannot initialize.
         }
 
         prefs.registerOnSharedPreferenceChangeListener { sharedPreferences, key ->
