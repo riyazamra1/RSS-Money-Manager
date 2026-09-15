@@ -4,6 +4,7 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <application
+        android:name=".RssMoneyManagerApplication"
         android:allowBackup="true"
         android:icon="@drawable/rss_money_manager_icon"
         android:roundIcon="@drawable/rss_money_manager_icon"
