@@ -1,0 +1,70 @@
+name: RSS Google Drive Backup
+
+on:
+  push:
+    branches: ['**']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact pushed commit
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          ref: ${{ github.sha }}
+
+      - name: Create repository snapshot
+        run: |
+          mkdir -p backup
+          git archive --format=zip --output="backup/${{ github.event.repository.name }}_${{ github.sha }}.zip" "${{ github.sha }}"
+          printf '%s\n' "repository=${{ github.repository }}" "branch=${{ github.ref_name }}" "commit=${{ github.sha }}" "created=${{ github.event.head_commit.timestamp }}" > backup/metadata.txt
+
+      - name: Upload snapshot to Google Drive
+        env:
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          GOOGLE_DRIVE_FOLDER_ID: ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}
+          REPO_NAME: ${{ github.event.repository.name }}
+          COMMIT_SHA: ${{ github.sha }}
+        run: |
+          python3 - <<'PY'
+          import base64, json, os, time, uuid, urllib.request, urllib.parse
+          from pathlib import Path
+
+          sa = os.environ.get('GOOGLE_SERVICE_ACCOUNT_JSON','').strip()
+          folder = os.environ.get('GOOGLE_DRIVE_FOLDER_ID','').strip()
+          if not sa or not folder:
+              raise SystemExit('Missing GOOGLE_SERVICE_ACCOUNT_JSON or GOOGLE_DRIVE_FOLDER_ID GitHub Secret')
+          info = json.loads(sa)
+          def b64(x): return base64.urlsafe_b64encode(x).rstrip(b'=').decode()
+          now = int(time.time())
+          header = b64(json.dumps({'alg':'RS256','typ':'JWT'}).encode())
+          claim = b64(json.dumps({'iss':info['client_email'],'scope':'https://www.googleapis.com/auth/drive.file','aud':'https://oauth2.googleapis.com/token','iat':now,'exp':now+3600}).encode())
+          unsigned = (header+'.'+claim).encode()
+          key = info['private_key'].replace('\\n','\n')
+          import subprocess, tempfile
+          with tempfile.TemporaryDirectory() as td:
+              p=Path(td)
+              (p/'key.pem').write_text(key)
+              (p/'data').write_bytes(unsigned)
+              sig=subprocess.check_output(['openssl','dgst','-sha256','-sign',str(p/'key.pem'),str(p/'data')])
+          assertion=header+'.'+claim+'.'+b64(sig)
+          body=urllib.parse.urlencode({'grant_type':'urn:ietf:params:oauth:grant-type:jwt-bearer','assertion':assertion}).encode()
+          req=urllib.request.Request('https://oauth2.googleapis.com/token',data=body,headers={'Content-Type':'application/x-www-form-urlencoded'})
+          token=json.load(urllib.request.urlopen(req))['access_token']
+          zip_path=next(Path('backup').glob('*.zip'))
+          name=f"{os.environ['REPO_NAME']}_{os.environ['COMMIT_SHA']}.zip"
+          boundary='----RSSBoundary'+uuid.uuid4().hex
+          metadata=json.dumps({'name':name,'parents':[folder]}).encode()
+          data=zip_path.read_bytes()
+          payload=(f'--{boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n'.encode()+metadata+
+                   f'\r\n--{boundary}\r\nContent-Type: application/zip\r\n\r\n'.encode()+data+
+                   f'\r\n--{boundary}--\r\n'.encode())
+          req=urllib.request.Request('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart',data=payload,headers={'Authorization':'Bearer '+token,'Content-Type':'multipart/related; boundary='+boundary})
+          result=json.load(urllib.request.urlopen(req))
+          print('Google Drive backup uploaded:', result.get('id'), name)
+          PY
