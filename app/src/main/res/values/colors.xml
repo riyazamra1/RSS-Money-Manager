@@ -1,2 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources></resources>
+<resources>
+    <color name="rss_navy">#0B1630</color>
+    <color name="rss_navy_2">#122344</color>
+    <color name="rss_gold">#D4AF37</color>
+    <color name="rss_gold_soft">#F4E8B2</color>
+    <color name="rss_surface">#FFFFFF</color>
+    <color name="rss_surface_soft">#F7F8FC</color>
+    <color name="rss_text">#172033</color>
+    <color name="rss_muted">#68738A</color>
+    <color name="rss_income">#178B5B</color>
+    <color name="rss_expense">#D64B4B</color>
+</resources>
