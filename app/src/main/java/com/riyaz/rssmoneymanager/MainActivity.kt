@@ -35,7 +35,14 @@ class MainActivity : AppCompatActivity() {
     private var expenseMinor = 0L
     private val recentTransactions = mutableListOf<Transaction>()
     private val categories = listOf("House Expenses", "Food", "Transport", "Bills", "Shopping", "Salary", "Other")
-    private val wallets = listOf("Cash", "Bank", "Card", "Savings", "Other")
+    private val wallets = mutableListOf<Wallet>()
+    private val defaultWallets = listOf(
+        Wallet("Cash", "Cash", 0L),
+        Wallet("Bank", "Bank", 0L),
+        Wallet("Card", "Card", 0L),
+        Wallet("Savings", "Savings", 0L),
+        Wallet("Other", "Other", 0L)
+    )
     private val prefs by lazy { getSharedPreferences("money_manager", MODE_PRIVATE) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -46,9 +53,11 @@ class MainActivity : AppCompatActivity() {
         setupMagicNavigation()
         binding.menuButton.setOnClickListener { startActivity(Intent(this, RssKitMenuActivity::class.java)) }
         binding.addTransactionButton.setOnClickListener { showTransactionDialog() }
+        binding.addWalletButton.setOnClickListener { showWalletDialog(null) }
         loadPersistedState()
         renderDashboard()
         renderTransactions()
+        renderAccounts()
         when (intent.getStringExtra("open_screen")) {
             "transactions" -> showScreen(binding.transactionsScreen)
             "accounts" -> showScreen(binding.accountsScreen)
@@ -143,9 +152,10 @@ class MainActivity : AppCompatActivity() {
 
         val description = field("Description", "", InputType.TYPE_CLASS_TEXT)
         val category = dropdownField("Category", categories, "House Expenses")
-        val wallet = dropdownField("Wallet", wallets, "Cash")
-        val fromWallet = dropdownField("From Account / Wallet", wallets, "Cash")
-        val toWallet = dropdownField("To Account / Wallet", wallets, "Bank")
+        val walletNames = walletNames()
+        val wallet = dropdownField("Wallet", walletNames, walletNames.firstOrNull() ?: "Cash")
+        val fromWallet = dropdownField("From Account / Wallet", walletNames, walletNames.firstOrNull() ?: "Cash")
+        val toWallet = dropdownField("To Account / Wallet", walletNames, walletNames.getOrNull(1) ?: walletNames.firstOrNull() ?: "Cash")
         val itemsSection = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; visibility = View.GONE }
         val itemsSummary = TextView(this).apply { textSize = 14f; setPadding(0, 4, 0, 4) }
         val itemRows = mutableListOf<ItemDraft>()
@@ -264,11 +274,163 @@ class MainActivity : AppCompatActivity() {
                 persistState()
                 renderDashboard()
                 renderTransactions()
+                renderAccounts()
                 dialog.dismiss()
                 showScreen(binding.transactionsScreen)
             }
         }
         dialog.show()
+    }
+
+    private fun walletNames(): List<String> = wallets.map { it.name }.ifEmpty { listOf("Cash") }
+
+    private fun showWalletDialog(existing: Wallet?) {
+        val container = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(24, 8, 24, 0)
+        }
+        val name = field("Wallet name", existing?.name ?: "", InputType.TYPE_CLASS_TEXT)
+        val type = dropdownField("Account type",
+            listOf("Cash", "Bank", "Card", "Savings", "Credit", "Investment", "Other"),
+            existing?.type ?: "Cash")
+        val opening = field("Opening balance",
+            existing?.openingMinor?.let { BigDecimal.valueOf(it, 2).toPlainString() } ?: "0.00",
+            InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL)
+        container.addView(name)
+        container.addView(type)
+        container.addView(opening)
+
+        val dialog = MaterialAlertDialogBuilder(this)
+            .setTitle(if (existing == null) "Add Wallet" else "Edit Wallet")
+            .setView(container)
+            .setNegativeButton("Cancel", null)
+            .setPositiveButton(if (existing == null) "Add" else "Save", null)
+            .create()
+
+        dialog.setOnShowListener {
+            dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                val newName = name.text.toString().trim()
+                val newType = type.text.toString().trim().ifEmpty { "Other" }
+                val newOpening = parseMinor(opening.text.toString())
+                if (newName.isEmpty()) {
+                    Snackbar.make(binding.root, "Enter a wallet name", Snackbar.LENGTH_SHORT).show()
+                    return@setOnClickListener
+                }
+                if (wallets.any { it.name.equals(newName, true) && it !== existing }) {
+                    Snackbar.make(binding.root, "A wallet with this name already exists", Snackbar.LENGTH_SHORT).show()
+                    return@setOnClickListener
+                }
+                if (existing == null) {
+                    wallets.add(Wallet(newName, newType, newOpening))
+                    balanceMinor += newOpening
+                } else {
+                    val oldName = existing.name
+                    balanceMinor += newOpening - existing.openingMinor
+                    existing.name = newName
+                    existing.type = newType
+                    existing.openingMinor = newOpening
+                    recentTransactions.forEach { transaction ->
+                        if (transaction.type == "Transfer") {
+                            transaction.wallet = transaction.wallet.replace(oldName + " → ", newName + " → ")
+                                .replace(" → " + oldName, " → " + newName)
+                        } else if (transaction.wallet.equals(oldName, true)) {
+                            transaction.wallet = newName
+                        }
+                    }
+                }
+                persistState()
+                renderDashboard()
+                renderTransactions()
+                renderAccounts()
+                dialog.dismiss()
+            }
+        }
+        dialog.show()
+    }
+
+    private fun confirmDeleteWallet(wallet: Wallet) {
+        MaterialAlertDialogBuilder(this)
+            .setTitle("Delete Wallet")
+            .setMessage("Delete " + wallet.name + "? Existing transaction history will be kept.")
+            .setNegativeButton("Cancel", null)
+            .setPositiveButton("Delete") { _, _ ->
+                val name = wallet.name
+                balanceMinor -= wallet.openingMinor
+                wallets.remove(wallet)
+                recentTransactions.forEach { transaction ->
+                    if (transaction.type == "Transfer") {
+                        transaction.wallet = transaction.wallet.replace(name, "Deleted wallet")
+                    } else if (transaction.wallet.equals(name, true)) {
+                        transaction.wallet = "Deleted wallet"
+                    }
+                }
+                if (wallets.isEmpty()) wallets.add(Wallet("Cash", "Cash", 0L))
+                persistState()
+                renderDashboard()
+                renderTransactions()
+                renderAccounts()
+            }
+            .show()
+    }
+
+    private fun renderAccounts() {
+        binding.accountsContainer.removeAllViews()
+        if (wallets.isEmpty()) wallets.addAll(defaultWallets.map { it.copy() })
+        wallets.forEach { wallet ->
+            val card = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(18, 16, 18, 16)
+                setBackgroundResource(R.drawable.surface_card)
+                isClickable = true
+                setOnClickListener { showWalletDialog(wallet) }
+                setOnLongClickListener { confirmDeleteWallet(wallet); true }
+            }
+            val header = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = android.view.Gravity.CENTER_VERTICAL
+            }
+            val info = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+            info.addView(TextView(this).apply {
+                text = wallet.name
+                textSize = 18f
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+            })
+            info.addView(TextView(this).apply {
+                text = wallet.type
+                textSize = 12f
+            })
+            header.addView(info, LinearLayout.LayoutParams(0, -2, 1f))
+            header.addView(TextView(this).apply {
+                text = formatMinor(walletBalance(wallet))
+                textSize = 17f
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+            })
+            card.addView(header)
+            card.addView(TextView(this).apply {
+                text = "Tap to edit • Long press to delete"
+                textSize = 11f
+                setPadding(0, 8, 0, 0)
+            })
+            binding.accountsContainer.addView(card, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = 10 })
+        }
+    }
+
+    private fun walletBalance(wallet: Wallet): Long {
+        var balance = wallet.openingMinor
+        recentTransactions.forEach { transaction ->
+            when (transaction.type) {
+                "Income" -> if (transaction.wallet.equals(wallet.name, true)) balance += transaction.totalMinor
+                "Expense" -> if (transaction.wallet.equals(wallet.name, true)) balance -= transaction.totalMinor
+                "Transfer" -> {
+                    val parts = transaction.wallet.split(" → ")
+                    if (parts.size == 2) {
+                        if (parts[0].equals(wallet.name, true)) balance -= transaction.totalMinor
+                        if (parts[1].equals(wallet.name, true)) balance += transaction.totalMinor
+                    }
+                }
+            }
+        }
+        return balance
     }
 
     private fun entryTab(label: String): TextView = TextView(this).apply {
@@ -343,6 +505,15 @@ class MainActivity : AppCompatActivity() {
             .putLong("incomeMinor", incomeMinor)
             .putLong("expenseMinor", expenseMinor)
             .putString("transactions", transactionsJson.toString())
+            .putString("wallets", JSONArray().apply {
+                wallets.forEach { wallet ->
+                    put(JSONObject().apply {
+                        put("name", wallet.name)
+                        put("type", wallet.type)
+                        put("openingMinor", wallet.openingMinor)
+                    })
+                }
+            }.toString())
             .apply()
     }
 
@@ -350,6 +521,24 @@ class MainActivity : AppCompatActivity() {
         balanceMinor = prefs.getLong("balanceMinor", 0L)
         incomeMinor = prefs.getLong("incomeMinor", 0L)
         expenseMinor = prefs.getLong("expenseMinor", 0L)
+        wallets.clear()
+        val walletsRaw = prefs.getString("wallets", null)
+        if (!walletsRaw.isNullOrBlank()) {
+            try {
+                val savedWallets = JSONArray(walletsRaw)
+                for (i in 0 until savedWallets.length()) {
+                    val obj = savedWallets.getJSONObject(i)
+                    wallets.add(Wallet(
+                        obj.optString("name"),
+                        obj.optString("type", "Other"),
+                        obj.optLong("openingMinor", 0L)
+                    ))
+                }
+            } catch (_: Exception) {
+                wallets.clear()
+            }
+        }
+        if (wallets.isEmpty()) wallets.addAll(defaultWallets.map { it.copy() })
         recentTransactions.clear()
         val raw = prefs.getString("transactions", null) ?: return
         try {
@@ -458,7 +647,8 @@ class MainActivity : AppCompatActivity() {
 
     override fun onDestroy() { _binding = null; super.onDestroy() }
 
-    private data class Transaction(val type: String, val count: Long, val unitMinor: Long, val totalMinor: Long, val description: String, val category: String, val wallet: String, val memo: String, val items: List<TransactionItem>, val recurring: Boolean)
+    private data class Transaction(val type: String, val count: Long, val unitMinor: Long, val totalMinor: Long, val description: String, val category: String, var wallet: String, val memo: String, val items: List<TransactionItem>, val recurring: Boolean)
+    private data class Wallet(var name: String, var type: String, var openingMinor: Long)
     private data class TransactionItem(val name: String, val quantity: Long, val unitMinor: Long, val totalMinor: Long)
     private class ItemDraft {
         var name = ""
