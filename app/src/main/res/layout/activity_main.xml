@@ -51,10 +51,13 @@
                             android:textStyle="bold" />
                     </LinearLayout>
                     <ImageView
+                        android:id="@+id/menu_button"
                         android:layout_width="46dp"
                         android:layout_height="46dp"
                         android:background="@drawable/nav_item_background"
-                        android:contentDescription="@string/app_name"
+                        android:contentDescription="Open navigation menu"
+                        android:clickable="true"
+                        android:focusable="true"
                         android:padding="10dp"
                         android:src="@drawable/rss_money_manager_icon" />
                 </LinearLayout>
