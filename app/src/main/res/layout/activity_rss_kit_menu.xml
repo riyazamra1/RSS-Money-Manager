@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/rss_surface_soft">
+
+    <ScrollView
+        android:id="@+id/drawer_panel"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@color/rss_surface"
+        android:elevation="18dp">
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingStart="22dp"
+            android:paddingTop="26dp"
+            android:paddingEnd="22dp"
+            android:paddingBottom="30dp">
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_vertical">
+                <ImageView android:layout_width="64dp" android:layout_height="64dp" android:padding="8dp" android:src="@drawable/rss_money_manager_icon" android:contentDescription="@string/app_name" />
+                <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:layout_marginStart="14dp" android:orientation="vertical">
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="RSS Money Manager" android:textColor="@color/rss_text" android:textSize="20sp" android:textStyle="bold" />
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="3dp" android:text="Professional personal finance" android:textColor="@color/rss_muted" android:textSize="13sp" />
+                </LinearLayout>
+                <TextView android:id="@+id/menu_close" android:layout_width="44dp" android:layout_height="44dp" android:gravity="center" android:text="×" android:textColor="@color/rss_text" android:textSize="28sp" android:clickable="true" android:focusable="true" />
+            </LinearLayout>
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="28dp" android:text="MAIN" android:textColor="@color/rss_gold" android:textSize="12sp" android:textStyle="bold" />
+            <TextView android:id="@+id/menu_home" style="@style/RssMenuItem" android:text="⌂   Home" />
+            <TextView android:id="@+id/menu_transactions" style="@style/RssMenuItem" android:text="▤   Transactions" />
+            <TextView android:id="@+id/menu_accounts" style="@style/RssMenuItem" android:text="▣   Accounts &amp; Wallets" />
+            <TextView android:id="@+id/menu_more" style="@style/RssMenuItem" android:text="⋯   More" />
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="24dp" android:text="APP" android:textColor="@color/rss_gold" android:textSize="12sp" android:textStyle="bold" />
+            <TextView android:id="@+id/menu_settings" style="@style/RssMenuItem" android:text="⚙   Settings" />
+            <TextView android:id="@+id/menu_about" style="@style/RssMenuItem" android:text="ⓘ   About" />
+            <TextView android:id="@+id/menu_contact" style="@style/RssMenuItem" android:text="✉   Contact" />
+            <TextView android:id="@+id/menu_privacy" style="@style/RssMenuItem" android:text="▤   Privacy Policy" />
+            <TextView android:id="@+id/menu_terms" style="@style/RssMenuItem" android:text="✓   Terms &amp; Conditions" />
+            <View android:layout_width="match_parent" android:layout_height="1dp" android:layout_marginTop="28dp" android:background="#E7EAF0" />
+            <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="18dp" android:gravity="center" android:text="Razeen Secure Solution&#10;RSS • Since 2015" android:textColor="@color/rss_muted" android:textSize="12sp" />
+        </LinearLayout>
+    </ScrollView>
+
+    <ScrollView android:id="@+id/settings_page" android:layout_width="match_parent" android:layout_height="match_parent" android:background="@color/rss_surface" android:visibility="gone">
+        <LinearLayout style="@style/RssPageContainer">
+            <TextView android:id="@+id/page_back_settings" style="@style/RssBackButton" android:text="‹  Menu" />
+            <TextView style="@style/RssPageTitle" android:text="Settings" />
+            <TextView style="@style/RssPageSubtitle" android:text="Control the app experience on this device." />
+            <TextView style="@style/RssSectionTitle" android:text="Appearance" />
+            <TextView android:id="@+id/theme_system" style="@style/RssOption" android:text="System default" />
+            <TextView android:id="@+id/theme_light" style="@style/RssOption" android:text="Light" />
+            <TextView android:id="@+id/theme_dark" style="@style/RssOption" android:text="Dark" />
+            <TextView style="@style/RssSectionTitle" android:text="Data" />
+            <TextView android:id="@+id/clear_local_data" style="@style/RssDangerOption" android:text="Clear local Money Manager data" />
+            <TextView android:id="@+id/settings_status" style="@style/RssPageSubtitle" android:text="No setting changed." />
+            <TextView style="@style/RssSectionTitle" android:text="Account &amp; Sync" />
+            <TextView style="@style/RssPageSubtitle" android:text="RSS Core account, verification, cloud sync and Premium entitlement will appear here when the live RSS Core connection is configured. No connection is faked." />
+        </LinearLayout>
+    </ScrollView>
+
+    <ScrollView android:id="@+id/about_page" android:layout_width="match_parent" android:layout_height="match_parent" android:background="@color/rss_surface" android:visibility="gone">
+        <LinearLayout style="@style/RssPageContainer">
+            <TextView android:id="@+id/page_back_about" style="@style/RssBackButton" android:text="‹  Menu" />
+            <ImageView android:layout_width="86dp" android:layout_height="86dp" android:layout_gravity="center_horizontal" android:padding="10dp" android:src="@drawable/rss_money_manager_icon" android:contentDescription="@string/app_name" />
+            <TextView style="@style/RssPageTitleCenter" android:text="RSS Money Manager" />
+            <TextView style="@style/RssPageSubtitleCenter" android:text="A professional personal finance app by Razeen Secure Solution." />
+            <TextView style="@style/RssSectionTitle" android:text="Company" />
+            <TextView style="@style/RssBody" android:text="Razeen Secure Solution (RSS)&#10;Software development • CCTV • Networking • System Administration&#10;Company since 2015" />
+            <TextView style="@style/RssSectionTitle" android:text="App" />
+            <TextView style="@style/RssBody" android:text="Designed and implemented as an original RSS project using RSS KIT standards." />
+        </LinearLayout>
+    </ScrollView>
+
+    <ScrollView android:id="@+id/contact_page" android:layout_width="match_parent" android:layout_height="match_parent" android:background="@color/rss_surface" android:visibility="gone">
+        <LinearLayout style="@style/RssPageContainer">
+            <TextView android:id="@+id/page_back_contact" style="@style/RssBackButton" android:text="‹  Menu" />
+            <TextView style="@style/RssPageTitle" android:text="Contact" />
+            <TextView style="@style/RssPageSubtitle" android:text="Contact Razeen Secure Solution for support or business enquiries." />
+            <TextView style="@style/RssContactCard" android:text="Email&#10;rsscctvsolution@gmail.com" />
+            <TextView style="@style/RssContactCard" android:text="Phone&#10;0771155504  •  0701555504" />
+            <TextView style="@style/RssContactCard" android:text="Website&#10;www.rssapps.cv" />
+        </LinearLayout>
+    </ScrollView>
+
+    <ScrollView android:id="@+id/privacy_page" android:layout_width="match_parent" android:layout_height="match_parent" android:background="@color/rss_surface" android:visibility="gone">
+        <LinearLayout style="@style/RssPageContainer">
+            <TextView android:id="@+id/page_back_privacy" style="@style/RssBackButton" android:text="‹  Menu" />
+            <TextView style="@style/RssPageTitle" android:text="Privacy Policy" />
+            <TextView style="@style/RssPageSubtitle" android:text="RSS Money Manager privacy summary" />
+            <TextView style="@style/RssBody" android:text="Data stored locally by the app remains on the device unless you use a connected backup or sync feature. Account, verification, cloud-sync and Premium data may be processed by RSS Core only when those services are actually connected and used.&#10;&#10;The app should not request access to personal data that is not required for an enabled feature. Photo selection is user initiated.&#10;&#10;For the complete current policy, use the official RSS Privacy Policy published by Razeen Secure Solution." />
+        </LinearLayout>
+    </ScrollView>
+
+    <ScrollView android:id="@+id/terms_page" android:layout_width="match_parent" android:layout_height="match_parent" android:background="@color/rss_surface" android:visibility="gone">
+        <LinearLayout style="@style/RssPageContainer">
+            <TextView android:id="@+id/page_back_terms" style="@style/RssBackButton" android:text="‹  Menu" />
+            <TextView style="@style/RssPageTitle" android:text="Terms &amp; Conditions" />
+            <TextView style="@style/RssPageSubtitle" android:text="RSS Money Manager terms summary" />
+            <TextView style="@style/RssBody" android:text="Use RSS Money Manager only for lawful personal or business financial record keeping. You are responsible for the accuracy of information entered into the app and for maintaining access to your device and account.&#10;&#10;Backup, cloud sync, account, Premium and payment features depend on their actual service configuration and availability. The app does not claim a successful remote operation unless the connected service confirms it.&#10;&#10;The complete current Terms &amp; Conditions published by Razeen Secure Solution take precedence over this in-app summary." />
+        </LinearLayout>
+    </ScrollView>
+</FrameLayout>
