@@ -34,7 +34,8 @@ class MainActivity : AppCompatActivity() {
     private var incomeMinor = 0L
     private var expenseMinor = 0L
     private val recentTransactions = mutableListOf<Transaction>()
-    private val categories = listOf("House Expenses", "Food", "Transport", "Bills", "Shopping", "Salary", "Other")
+    private val categories = mutableListOf<String>()
+    private val defaultCategories = listOf("House Expenses", "Food", "Transport", "Bills", "Shopping", "Salary", "Other")
     private val wallets = mutableListOf<Wallet>()
     private val defaultWallets = listOf(
         Wallet("Cash", "Cash", 0L),
@@ -54,6 +55,9 @@ class MainActivity : AppCompatActivity() {
         binding.menuButton.setOnClickListener { startActivity(Intent(this, RssKitMenuActivity::class.java)) }
         binding.addTransactionButton.setOnClickListener { showTransactionDialog() }
         binding.addWalletButton.setOnClickListener { showWalletDialog(null) }
+        binding.homeAddButton.setOnClickListener { showTransactionDialog() }
+        binding.homeAccountsButton.setOnClickListener { showScreen(binding.accountsScreen) }
+        binding.homeCategoriesButton.setOnClickListener { showCategoryManager() }
         loadPersistedState()
         renderDashboard()
         renderTransactions()
@@ -151,7 +155,7 @@ class MainActivity : AppCompatActivity() {
         recalculate()
 
         val description = field("Description", "", InputType.TYPE_CLASS_TEXT)
-        val category = dropdownField("Category", categories, "House Expenses")
+        val category = dropdownField("Category", categoryNames(), categoryNames().firstOrNull() ?: "Other")
         val walletNames = walletNames()
         val wallet = dropdownField("Wallet", walletNames, walletNames.firstOrNull() ?: "Cash")
         val fromWallet = dropdownField("From Account / Wallet", walletNames, walletNames.firstOrNull() ?: "Cash")
@@ -280,6 +284,105 @@ class MainActivity : AppCompatActivity() {
             }
         }
         dialog.show()
+    }
+
+    private fun categoryNames(): List<String> = categories.ifEmpty { defaultCategories }
+
+    private fun showCategoryManager() {
+        val container = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(24, 4, 24, 0)
+        }
+        val list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        val name = field("New category name", "", InputType.TYPE_CLASS_TEXT)
+        container.addView(name)
+        container.addView(list)
+
+        fun refresh() {
+            list.removeAllViews()
+            categories.forEach { categoryName ->
+                val row = LinearLayout(this).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = android.view.Gravity.CENTER_VERTICAL
+                    setPadding(0, 6, 0, 6)
+                }
+                row.addView(TextView(this).apply {
+                    text = categoryName
+                    textSize = 16f
+                    setPadding(0, 8, 0, 8)
+                }, LinearLayout.LayoutParams(0, -2, 1f))
+                row.addView(TextView(this).apply {
+                    text = "Edit"
+                    textSize = 14f
+                    isClickable = true
+                    setPadding(12, 8, 12, 8)
+                    setOnClickListener {
+                        val edit = field("Category name", categoryName, InputType.TYPE_CLASS_TEXT)
+                        MaterialAlertDialogBuilder(this@MainActivity)
+                            .setTitle("Edit Category")
+                            .setView(edit)
+                            .setNegativeButton("Cancel", null)
+                            .setPositiveButton("Save") { _, _ ->
+                                val newName = edit.text.toString().trim()
+                                if (newName.isNotEmpty() && !categories.any { it.equals(newName, true) && it != categoryName }) {
+                                    val index = categories.indexOf(categoryName)
+                                    if (index >= 0) categories[index] = newName
+                                    recentTransactions.forEach { if (it.category.equals(categoryName, true)) it.category = newName }
+                                    persistState()
+                                    refresh()
+                                    renderDashboard()
+                                    renderTransactions()
+                                }
+                            }.show()
+                    }
+                })
+                row.addView(TextView(this).apply {
+                    text = "Delete"
+                    textSize = 14f
+                    isClickable = true
+                    setPadding(12, 8, 4, 8)
+                    setOnClickListener {
+                        MaterialAlertDialogBuilder(this@MainActivity)
+                            .setTitle("Delete Category")
+                            .setMessage("Delete " + categoryName + "? Existing transactions will keep their category.")
+                            .setNegativeButton("Cancel", null)
+                            .setPositiveButton("Delete") { _, _ ->
+                                categories.remove(categoryName)
+                                if (categories.isEmpty()) categories.add("Other")
+                                persistState()
+                                refresh()
+                            }.show()
+                    }
+                })
+                list.addView(row)
+            }
+        }
+
+        MaterialAlertDialogBuilder(this)
+            .setTitle("Categories")
+            .setMessage("Create and manage the categories used by new transactions.")
+            .setView(container)
+            .setNegativeButton("Close", null)
+            .setPositiveButton("Add", null)
+            .create().also { dialog ->
+                dialog.setOnShowListener {
+                    refresh()
+                    dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                        val newName = name.text.toString().trim()
+                        if (newName.isEmpty()) {
+                            Snackbar.make(binding.root, "Enter a category name", Snackbar.LENGTH_SHORT).show()
+                        } else if (categories.any { it.equals(newName, true) }) {
+                            Snackbar.make(binding.root, "Category already exists", Snackbar.LENGTH_SHORT).show()
+                        } else {
+                            categories.add(newName)
+                            name.setText("")
+                            persistState()
+                            refresh()
+                        }
+                    }
+                }
+                dialog.show()
+            }
     }
 
     private fun walletNames(): List<String> = wallets.map { it.name }.ifEmpty { listOf("Cash") }
@@ -505,6 +608,7 @@ class MainActivity : AppCompatActivity() {
             .putLong("incomeMinor", incomeMinor)
             .putLong("expenseMinor", expenseMinor)
             .putString("transactions", transactionsJson.toString())
+            .putString("categories", JSONArray(categories).toString())
             .putString("wallets", JSONArray().apply {
                 wallets.forEach { wallet ->
                     put(JSONObject().apply {
@@ -521,6 +625,17 @@ class MainActivity : AppCompatActivity() {
         balanceMinor = prefs.getLong("balanceMinor", 0L)
         incomeMinor = prefs.getLong("incomeMinor", 0L)
         expenseMinor = prefs.getLong("expenseMinor", 0L)
+        categories.clear()
+        val categoriesRaw = prefs.getString("categories", null)
+        if (!categoriesRaw.isNullOrBlank()) {
+            try {
+                val savedCategories = JSONArray(categoriesRaw)
+                for (i in 0 until savedCategories.length()) categories.add(savedCategories.optString(i))
+            } catch (_: Exception) {
+                categories.clear()
+            }
+        }
+        if (categories.isEmpty()) categories.addAll(defaultCategories)
         wallets.clear()
         val walletsRaw = prefs.getString("wallets", null)
         if (!walletsRaw.isNullOrBlank()) {
@@ -647,7 +762,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onDestroy() { _binding = null; super.onDestroy() }
 
-    private data class Transaction(val type: String, val count: Long, val unitMinor: Long, val totalMinor: Long, val description: String, val category: String, var wallet: String, val memo: String, val items: List<TransactionItem>, val recurring: Boolean)
+    private data class Transaction(val type: String, val count: Long, val unitMinor: Long, val totalMinor: Long, val description: String, var category: String, var wallet: String, val memo: String, val items: List<TransactionItem>, val recurring: Boolean)
     private data class Wallet(var name: String, var type: String, var openingMinor: Long)
     private data class TransactionItem(val name: String, val quantity: Long, val unitMinor: Long, val totalMinor: Long)
     private class ItemDraft {
