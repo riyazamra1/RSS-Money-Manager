@@ -23,6 +23,11 @@
         </activity>
 
         <activity
+            android:name=".RssKitMenuActivity"
+            android:exported="false"
+            android:theme="@style/AppTheme" />
+
+        <activity
             android:name=".MainActivity"
             android:exported="false"
             android:theme="@style/SplashTheme">
