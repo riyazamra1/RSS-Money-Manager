@@ -1,16 +1,19 @@
 <resources>
-
     <style name="Base.AppTheme" parent="Theme.Material3.DayNight.NoActionBar">
-        <item name="android:windowActionModeOverlay">true</item>
         <item name="android:fontFamily">sans</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:statusBarColor">@color/rss_surface</item>
+        <item name="android:navigationBarColor">@color/rss_surface</item>
+        <item name="colorPrimary">@color/rss_navy</item>
+        <item name="colorPrimaryContainer">@color/rss_gold_soft</item>
+        <item name="colorOnPrimary">@color/rss_surface</item>
+        <item name="colorSurface">@color/rss_surface</item>
+        <item name="android:windowBackground">@color/rss_surface_soft</item>
     </style>
-
     <style name="AppTheme" parent="Base.AppTheme" />
-
     <style name="SplashTheme" parent="Theme.SplashScreen">
-        <item name="windowSplashScreenBackground">#0B1630</item>
+        <item name="windowSplashScreenBackground">@color/rss_navy</item>
         <item name="windowSplashScreenAnimatedIcon">@drawable/rss_money_manager_icon</item>
         <item name="postSplashScreenTheme">@style/AppTheme</item>
     </style>
-
 </resources>
