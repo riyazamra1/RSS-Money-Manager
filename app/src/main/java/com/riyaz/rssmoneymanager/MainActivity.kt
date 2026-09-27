@@ -44,10 +44,16 @@ class MainActivity : AppCompatActivity() {
         _binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
         setupMagicNavigation()
+        binding.menuButton.setOnClickListener { startActivity(Intent(this, RssKitMenuActivity::class.java)) }
         binding.addTransactionButton.setOnClickListener { showTransactionDialog() }
         loadPersistedState()
         renderDashboard()
         renderTransactions()
+        when (intent.getStringExtra("open_screen")) {
+            "transactions" -> showScreen(binding.transactionsScreen)
+            "accounts" -> showScreen(binding.accountsScreen)
+            "more" -> showScreen(binding.moreScreen)
+        }
     }
 
     private fun setupMagicNavigation() {
