@@ -37,6 +37,8 @@ class MainActivity : AppCompatActivity() {
     private val categories = mutableListOf<String>()
     private val defaultCategories = listOf("House Expenses", "Food", "Transport", "Bills", "Shopping", "Salary", "Other")
     private val wallets = mutableListOf<Wallet>()
+    private val budgets = mutableListOf<Budget>()
+    private val savingsGoals = mutableListOf<SavingsGoal>()
     private val defaultWallets = listOf(
         Wallet("Cash", "Cash", 0L),
         Wallet("Bank", "Bank", 0L),
@@ -59,6 +61,8 @@ class MainActivity : AppCompatActivity() {
         binding.homeAccountsButton.setOnClickListener { showScreen(binding.accountsScreen) }
         binding.homeCategoriesButton.setOnClickListener { showCategoryManager() }
         loadPersistedState()
+        binding.budgetsButton.setOnClickListener { showBudgetManager() }
+        binding.savingsGoalsButton.setOnClickListener { showSavingsGoalManager() }
         renderDashboard()
         renderTransactions()
         renderAccounts()
@@ -604,6 +608,12 @@ class MainActivity : AppCompatActivity() {
             })
         }
         prefs.edit()
+            .putString("budgets", JSONArray().apply {
+                budgets.forEach { b -> put(JSONObject().apply { put("name", b.name); put("category", b.category); put("limitMinor", b.limitMinor) }) }
+            }.toString())
+            .putString("savingsGoals", JSONArray().apply {
+                savingsGoals.forEach { g -> put(JSONObject().apply { put("name", g.name); put("targetMinor", g.targetMinor); put("currentMinor", g.currentMinor); put("targetDate", g.targetDate) }) }
+            }.toString())
             .putLong("balanceMinor", balanceMinor)
             .putLong("incomeMinor", incomeMinor)
             .putLong("expenseMinor", expenseMinor)
@@ -622,6 +632,10 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun loadPersistedState() {
+        budgets.clear()
+        prefs.getString("budgets", null)?.let { raw -> try { val a=JSONArray(raw); for(i in 0 until a.length()) a.getJSONObject(i).let { budgets.add(Budget(it.optString("name"),it.optString("category"),it.optLong("limitMinor"))) } } catch (_: Exception) {} }
+        savingsGoals.clear()
+        prefs.getString("savingsGoals", null)?.let { raw -> try { val a=JSONArray(raw); for(i in 0 until a.length()) a.getJSONObject(i).let { savingsGoals.add(SavingsGoal(it.optString("name"),it.optLong("targetMinor"),it.optLong("currentMinor"),it.optString("targetDate"))) } } catch (_: Exception) {} }
         balanceMinor = prefs.getLong("balanceMinor", 0L)
         incomeMinor = prefs.getLong("incomeMinor", 0L)
         expenseMinor = prefs.getLong("expenseMinor", 0L)
@@ -691,6 +705,60 @@ class MainActivity : AppCompatActivity() {
             incomeMinor = 0L
             expenseMinor = 0L
         }
+    }
+
+
+    private fun showBudgetManager() {
+        val box=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setPadding(24,4,24,0) }
+        val name=field("Budget name","",InputType.TYPE_CLASS_TEXT)
+        val category=dropdownField("Category",categoryNames(),"Overall")
+        val limit=field("Limit","0.00",InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL)
+        val list=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
+        box.addView(name); box.addView(category); box.addView(limit); box.addView(list)
+        fun spentFor(cat:String):Long = recentTransactions.filter { it.type=="Expense" && (cat=="Overall" || it.category.equals(cat,true)) }.sumOf { it.totalMinor }
+        fun refresh(){
+            list.removeAllViews()
+            budgets.forEachIndexed { index,b ->
+                val spent=spentFor(b.category); val remaining=b.limitMinor-spent
+                val row=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setPadding(0,12,0,12) }
+                row.addView(TextView(this).apply { text=b.name+" • "+b.category; textSize=16f })
+                row.addView(TextView(this).apply { text="Spent "+formatMinor(spent)+" / "+formatMinor(b.limitMinor); textSize=13f })
+                row.addView(TextView(this).apply { text=if(remaining>=0) formatMinor(remaining)+" remaining" else formatMinor(-remaining)+" over"; textSize=13f })
+                row.addView(TextView(this).apply { text="Delete"; isClickable=true; setPadding(12,8,4,8); setOnClickListener { budgets.removeAt(index); persistState(); refresh() } })
+                list.addView(row)
+            }
+        }
+        refresh()
+        MaterialAlertDialogBuilder(this).setTitle("Budgets").setView(box).setNegativeButton("Close",null).setPositiveButton("Add Budget"){_,_->
+            val n=name.text.toString().trim(); val l=parseMinor(limit.text.toString()); val c=category.text.toString().ifBlank{"Overall"}
+            if(n.isNotEmpty()&&l>0){budgets.add(Budget(n,c,l));persistState()}
+        }.show()
+    }
+
+    private fun showSavingsGoalManager() {
+        val box=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setPadding(24,4,24,0) }
+        val name=field("Goal name","",InputType.TYPE_CLASS_TEXT)
+        val target=field("Target amount","0.00",InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL)
+        val current=field("Current saved","0.00",InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL)
+        val date=field("Target date (optional)","",InputType.TYPE_CLASS_TEXT)
+        val list=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
+        box.addView(name);box.addView(target);box.addView(current);box.addView(date);box.addView(list)
+        fun refresh(){
+            list.removeAllViews()
+            savingsGoals.forEachIndexed { index,g ->
+                val pct=if(g.targetMinor>0) ((g.currentMinor.toDouble()/g.targetMinor)*100).coerceIn(0.0,100.0).toInt() else 0
+                val row=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(0,12,0,12)}
+                row.addView(TextView(this).apply{text=g.name+" • "+pct+"%";textSize=16f})
+                row.addView(TextView(this).apply{text=formatMinor(g.currentMinor)+" / "+formatMinor(g.targetMinor)+if(g.targetDate.isNotBlank())" • "+g.targetDate else "";textSize=13f})
+                row.addView(TextView(this).apply{text="Delete";isClickable=true;setPadding(12,8,4,8);setOnClickListener{savingsGoals.removeAt(index);persistState();refresh()}})
+                list.addView(row)
+            }
+        }
+        refresh()
+        MaterialAlertDialogBuilder(this).setTitle("Savings Goals").setView(box).setNegativeButton("Close",null).setPositiveButton("Add Goal"){_,_->
+            val n=name.text.toString().trim(); val t=parseMinor(target.text.toString()); val c=parseMinor(current.text.toString())
+            if(n.isNotEmpty()&&t>0&&c>=0){savingsGoals.add(SavingsGoal(n,t,c,date.text.toString().trim()));persistState()}
+        }.show()
     }
 
     private fun renderDashboard() {
@@ -764,6 +832,8 @@ class MainActivity : AppCompatActivity() {
 
     private data class Transaction(val type: String, val count: Long, val unitMinor: Long, val totalMinor: Long, val description: String, var category: String, var wallet: String, val memo: String, val items: List<TransactionItem>, val recurring: Boolean)
     private data class Wallet(var name: String, var type: String, var openingMinor: Long)
+    private data class Budget(val name:String,val category:String,val limitMinor:Long)
+    private data class SavingsGoal(val name:String,val targetMinor:Long,val currentMinor:Long,val targetDate:String)
     private data class TransactionItem(val name: String, val quantity: Long, val unitMinor: Long, val totalMinor: Long)
     private class ItemDraft {
         var name = ""
