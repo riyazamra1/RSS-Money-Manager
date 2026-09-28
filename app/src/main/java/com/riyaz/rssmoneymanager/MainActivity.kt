@@ -63,6 +63,7 @@ class MainActivity : AppCompatActivity() {
         loadPersistedState()
         binding.budgetsButton.setOnClickListener { showBudgetManager() }
         binding.savingsGoalsButton.setOnClickListener { showSavingsGoalManager() }
+        binding.reportsButton.setOnClickListener { showReports() }
         renderDashboard()
         renderTransactions()
         renderAccounts()
@@ -258,7 +259,7 @@ class MainActivity : AppCompatActivity() {
                         Snackbar.make(binding.root, "From and To accounts must be different", Snackbar.LENGTH_SHORT).show()
                         return@setOnClickListener
                     }
-                    recentTransactions.add(0, Transaction("Transfer", 1L, transferAmount, transferAmount, desc, "Transfer", "$from → $to", memo.text.toString().trim(), emptyList(), false))
+                    recentTransactions.add(0, Transaction("Transfer", 1L, transferAmount, transferAmount, desc, "Transfer", "$from → $to", memo.text.toString().trim(), emptyList(), false, parseReportDate(dateTime.text.toString())))
                 } else {
                     val c = count.text.toString().toLongOrNull()?.coerceAtLeast(1L) ?: 1L
                     val unit = parseMinor(amount.text.toString())
@@ -268,7 +269,7 @@ class MainActivity : AppCompatActivity() {
                         return@setOnClickListener
                     }
                     val transactionType = if (selectedType == "Income") "Income" else "Expense"
-                    val transaction = Transaction(transactionType, c, unit, calculatedTotal, desc, category.text.toString().trim().ifEmpty { "Uncategorized" }, wallet.text.toString().trim().ifEmpty { "Cash" }, memo.text.toString().trim(), itemRows.map { it.toTransactionItem() }, recurring.text.toString().endsWith("On"))
+                    val transaction = Transaction(transactionType, c, unit, calculatedTotal, desc, category.text.toString().trim().ifEmpty { "Uncategorized" }, wallet.text.toString().trim().ifEmpty { "Cash" }, memo.text.toString().trim(), itemRows.map { it.toTransactionItem() }, recurring.text.toString().endsWith("On"), parseReportDate(dateTime.text.toString()))
                     recentTransactions.add(0, transaction)
                     if (transactionType == "Income") {
                         incomeMinor += calculatedTotal
@@ -595,6 +596,7 @@ class MainActivity : AppCompatActivity() {
                 put("wallet", t.wallet)
                 put("memo", t.memo)
                 put("recurring", t.recurring)
+                put("timestampMillis", t.timestampMillis)
                 val items = JSONArray()
                 t.items.forEach { item ->
                     items.put(JSONObject().apply {
@@ -696,7 +698,8 @@ class MainActivity : AppCompatActivity() {
                     obj.optString("wallet"),
                     obj.optString("memo"),
                     items,
-                    obj.optBoolean("recurring", false)
+                    obj.optBoolean("recurring", false),
+                    obj.optLong("timestampMillis", System.currentTimeMillis())
                 ))
             }
         } catch (_: Exception) {
@@ -761,6 +764,54 @@ class MainActivity : AppCompatActivity() {
         }.show()
     }
 
+    private fun showReports() {
+        val box = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(24, 4, 24, 0)
+        }
+        val period = dropdownField("Period", listOf("All time", "This month", "This year"), "All time")
+        val summary = TextView(this).apply { textSize = 15f; setPadding(0, 12, 0, 8) }
+        val categoryList = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        val walletList = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        box.addView(period); box.addView(summary)
+        box.addView(TextView(this).apply { text = "Expense by category"; textSize = 17f; setPadding(0, 12, 0, 6) })
+        box.addView(categoryList)
+        box.addView(TextView(this).apply { text = "Expense by wallet"; textSize = 17f; setPadding(0, 16, 0, 6) })
+        box.addView(walletList)
+        fun inPeriod(t: Transaction): Boolean {
+            val now = Calendar.getInstance()
+            val date = Calendar.getInstance().apply { timeInMillis = t.timestampMillis }
+            return when (period.text.toString()) {
+                "This month" -> now.get(Calendar.YEAR) == date.get(Calendar.YEAR) && now.get(Calendar.MONTH) == date.get(Calendar.MONTH)
+                "This year" -> now.get(Calendar.YEAR) == date.get(Calendar.YEAR)
+                else -> true
+            }
+        }
+        fun refresh() {
+            val filtered = recentTransactions.filter(::inPeriod)
+            val income = filtered.filter { it.type == "Income" }.sumOf { it.totalMinor }
+            val expense = filtered.filter { it.type == "Expense" }.sumOf { it.totalMinor }
+            val transfers = filtered.filter { it.type == "Transfer" }.sumOf { it.totalMinor }
+            summary.text = "Income: ${formatMinor(income)}\nExpenses: ${formatMinor(expense)}\nNet: ${formatMinor(income - expense)}\nTransfers: ${formatMinor(transfers)}\nTransactions: ${filtered.size}"
+            categoryList.removeAllViews()
+            filtered.filter { it.type == "Expense" }.groupBy { it.category }.entries.sortedByDescending { it.value.sumOf(Transaction::totalMinor) }.forEach { (category, items) ->
+                categoryList.addView(TextView(this).apply { text = "$category • ${formatMinor(items.sumOf(Transaction::totalMinor))}"; textSize = 14f; setPadding(0, 5, 0, 5) })
+            }
+            if (categoryList.childCount == 0) categoryList.addView(TextView(this).apply { text = "No expense data"; textSize = 13f })
+            walletList.removeAllViews()
+            filtered.filter { it.type == "Expense" }.groupBy { it.wallet }.entries.sortedByDescending { it.value.sumOf(Transaction::totalMinor) }.forEach { (wallet, items) ->
+                walletList.addView(TextView(this).apply { text = "$wallet • ${formatMinor(items.sumOf(Transaction::totalMinor))}"; textSize = 14f; setPadding(0, 5, 0, 5) })
+            }
+            if (walletList.childCount == 0) walletList.addView(TextView(this).apply { text = "No expense data"; textSize = 13f })
+        }
+        period.setOnItemClickListener { _, _, _, _ -> refresh() }
+        refresh()
+        MaterialAlertDialogBuilder(this).setTitle("Reports & Statistics").setView(box).setNegativeButton("Close", null).show()
+    }
+
+    private fun parseReportDate(value: String): Long = try {
+        SimpleDateFormat("dd MMM yyyy, HH:mm", Locale.getDefault()).parse(value)?.time ?: System.currentTimeMillis()
+    } catch (_: Exception) { System.currentTimeMillis() }
     private fun renderDashboard() {
         binding.balanceText.text = formatMinor(balanceMinor)
         binding.incomeText.text = formatMinor(incomeMinor)
@@ -830,7 +881,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onDestroy() { _binding = null; super.onDestroy() }
 
-    private data class Transaction(val type: String, val count: Long, val unitMinor: Long, val totalMinor: Long, val description: String, var category: String, var wallet: String, val memo: String, val items: List<TransactionItem>, val recurring: Boolean)
+    private data class Transaction(val type: String, val count: Long, val unitMinor: Long, val totalMinor: Long, val description: String, var category: String, var wallet: String, val memo: String, val items: List<TransactionItem>, val recurring: Boolean, val timestampMillis: Long = System.currentTimeMillis())
     private data class Wallet(var name: String, var type: String, var openingMinor: Long)
     private data class Budget(val name:String,val category:String,val limitMinor:Long)
     private data class SavingsGoal(val name:String,val targetMinor:Long,val currentMinor:Long,val targetDate:String)
