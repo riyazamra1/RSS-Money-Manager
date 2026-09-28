@@ -271,15 +271,9 @@ class MainActivity : AppCompatActivity() {
                     val transactionType = if (selectedType == "Income") "Income" else "Expense"
                     val transaction = Transaction(transactionType, c, unit, calculatedTotal, desc, category.text.toString().trim().ifEmpty { "Uncategorized" }, wallet.text.toString().trim().ifEmpty { "Cash" }, memo.text.toString().trim(), itemRows.map { it.toTransactionItem() }, recurring.text.toString().endsWith("On"), parseReportDate(dateTime.text.toString()))
                     recentTransactions.add(0, transaction)
-                    if (transactionType == "Income") {
-                        incomeMinor += calculatedTotal
-                        balanceMinor += calculatedTotal
-                    } else {
-                        expenseMinor += calculatedTotal
-                        balanceMinor -= calculatedTotal
-                    }
                 }
 
+                recalculateFinancialState()
                 persistState()
                 renderDashboard()
                 renderTransactions()
@@ -430,10 +424,8 @@ class MainActivity : AppCompatActivity() {
                 }
                 if (existing == null) {
                     wallets.add(Wallet(newName, newType, newOpening))
-                    balanceMinor += newOpening
                 } else {
                     val oldName = existing.name
-                    balanceMinor += newOpening - existing.openingMinor
                     existing.name = newName
                     existing.type = newType
                     existing.openingMinor = newOpening
@@ -446,6 +438,7 @@ class MainActivity : AppCompatActivity() {
                         }
                     }
                 }
+                recalculateFinancialState()
                 persistState()
                 renderDashboard()
                 renderTransactions()
@@ -463,7 +456,6 @@ class MainActivity : AppCompatActivity() {
             .setNegativeButton("Cancel", null)
             .setPositiveButton("Delete") { _, _ ->
                 val name = wallet.name
-                balanceMinor -= wallet.openingMinor
                 wallets.remove(wallet)
                 recentTransactions.forEach { transaction ->
                     if (transaction.type == "Transfer") {
@@ -473,6 +465,7 @@ class MainActivity : AppCompatActivity() {
                     }
                 }
                 if (wallets.isEmpty()) wallets.add(Wallet("Cash", "Cash", 0L))
+                recalculateFinancialState()
                 persistState()
                 renderDashboard()
                 renderTransactions()
@@ -539,6 +532,11 @@ class MainActivity : AppCompatActivity() {
             }
         }
         return balance
+    }
+    private fun recalculateFinancialState() {
+        balanceMinor = wallets.sumOf { wallet -> walletBalance(wallet) }
+        incomeMinor = recentTransactions.filter { it.type == "Income" }.sumOf { it.totalMinor }
+        expenseMinor = recentTransactions.filter { it.type == "Expense" }.sumOf { it.totalMinor }
     }
 
     private fun entryTab(label: String): TextView = TextView(this).apply {
@@ -704,10 +702,8 @@ class MainActivity : AppCompatActivity() {
             }
         } catch (_: Exception) {
             recentTransactions.clear()
-            balanceMinor = 0L
-            incomeMinor = 0L
-            expenseMinor = 0L
         }
+        recalculateFinancialState()
     }
 
 
