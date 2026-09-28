@@ -904,7 +904,8 @@ class MainActivity : AppCompatActivity() {
     }
     private var photoUriHolder: Uri? = null
     companion object { private const val PHOTO_REQUEST = 7001 }
-}    private fun showSavingsGoalManager() {
+
+    private fun showSavingsGoalManager() {
         val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(24, 4, 24, 0) }
         val name = field("Goal name", "", InputType.TYPE_CLASS_TEXT)
         val target = field("Target amount", "0.00", InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL)
