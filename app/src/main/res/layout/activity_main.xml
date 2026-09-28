@@ -180,6 +180,7 @@
                 <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="4dp" android:text="Planning, reports and settings" android:textColor="@color/rss_muted" android:textSize="14sp" />
                 <Button android:layout_width="match_parent" android:layout_height="54dp" android:layout_marginTop="20dp" android:id="@+id/budgets_button" android:text="Budgets" />
                 <Button android:layout_width="match_parent" android:layout_height="54dp" android:id="@+id/savings_goals_button" android:text="Savings Goals" />
+                <Button android:layout_width="match_parent" android:layout_height="54dp" android:id="@+id/reports_button" android:text="Reports &amp; Statistics" />
                 <Button android:layout_width="match_parent" android:layout_height="54dp" android:text="Debt Tracking" />
                 <Button android:layout_width="match_parent" android:layout_height="54dp" android:text="Categories" />
                 <Button android:layout_width="match_parent" android:layout_height="54dp" android:text="Search" />
