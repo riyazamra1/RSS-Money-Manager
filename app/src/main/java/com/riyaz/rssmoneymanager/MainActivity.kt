@@ -719,6 +719,7 @@ class MainActivity : AppCompatActivity() {
         val list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         box.addView(name); box.addView(category); box.addView(limit); box.addView(list)
         fun spentFor(cat: String): Long = recentTransactions.filter { it.type == "Expense" && (cat == "Overall" || it.category.equals(cat, true)) }.sumOf { it.totalMinor }
+        lateinit var refresh: () -> Unit
         fun renderBudget(budget: Budget, index: Int) {
             val spent = spentFor(budget.category)
             val remaining = budget.limitMinor - spent
@@ -749,7 +750,7 @@ class MainActivity : AppCompatActivity() {
             })
             row.addView(actions); list.addView(row)
         }
-        fun refresh() {
+        refresh = {
             list.removeAllViews()
             if (budgets.isEmpty()) list.addView(TextView(this).apply { text = "No budgets yet. Add a budget to track spending progress."; textSize = 14f; setPadding(0, 12, 0, 12) })
             else budgets.forEachIndexed { index, budget -> renderBudget(budget, index) }
@@ -913,6 +914,7 @@ class MainActivity : AppCompatActivity() {
         val date = field("Target date (optional)", "", InputType.TYPE_CLASS_TEXT)
         val list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         box.addView(name); box.addView(target); box.addView(current); box.addView(date); box.addView(list)
+        lateinit var refresh: () -> Unit
         fun renderGoal(goal: SavingsGoal, index: Int) {
             val percent = if (goal.targetMinor > 0L) ((goal.currentMinor.toDouble() / goal.targetMinor.toDouble()) * 100.0).coerceIn(0.0, 100.0).toInt() else 0
             val remaining = (goal.targetMinor - goal.currentMinor).coerceAtLeast(0L)
@@ -943,7 +945,7 @@ class MainActivity : AppCompatActivity() {
             })
             row.addView(actions); list.addView(row)
         }
-        fun refresh() {
+        refresh = {
             list.removeAllViews()
             if (savingsGoals.isEmpty()) list.addView(TextView(this).apply { text = "No savings goals yet. Add a goal to track progress."; textSize = 14f; setPadding(0, 12, 0, 12) })
             else savingsGoals.forEachIndexed { index, goal -> renderGoal(goal, index) }
