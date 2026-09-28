@@ -725,7 +725,7 @@ class MainActivity : AppCompatActivity() {
             val percent = if (budget.limitMinor > 0L) ((spent.toDouble() / budget.limitMinor.toDouble()) * 100.0).coerceIn(0.0, 100.0).toInt() else 0
             val row = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(0, 12, 0, 12) }
             row.addView(TextView(this).apply { text = budget.name + " • " + budget.category; textSize = 16f })
-            row.addView(TextView(this).apply { text = "Spent ${spentText} / ${limitText} • $percent%".replace("${spentText}", formatMinor(spent)).replace("${limitText}", formatMinor(budget.limitMinor)); textSize = 13f })
+            row.addView(TextView(this).apply { text = "Spent " + formatMinor(spent) + " / " + formatMinor(budget.limitMinor) + " • " + percent + "%"; textSize = 13f })
             row.addView(android.widget.ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply { max = 100; progress = percent; layoutParams = LinearLayout.LayoutParams(-1, 12).apply { topMargin = 6; bottomMargin = 6 } })
             row.addView(TextView(this).apply { text = if (remaining >= 0L) formatMinor(remaining) + " remaining" else formatMinor(-remaining) + " over budget"; textSize = 13f })
             val actions = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
