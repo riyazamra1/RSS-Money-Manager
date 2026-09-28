@@ -712,56 +712,251 @@ class MainActivity : AppCompatActivity() {
 
 
     private fun showBudgetManager() {
-        val box=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setPadding(24,4,24,0) }
-        val name=field("Budget name","",InputType.TYPE_CLASS_TEXT)
-        val category=dropdownField("Category",categoryNames(),"Overall")
-        val limit=field("Limit","0.00",InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL)
-        val list=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
+        val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(24, 4, 24, 0) }
+        val name = field("Budget name", "", InputType.TYPE_CLASS_TEXT)
+        val category = dropdownField("Category", listOf("Overall") + categoryNames(), "Overall")
+        val limit = field("Limit", "0.00", InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL)
+        val list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         box.addView(name); box.addView(category); box.addView(limit); box.addView(list)
-        fun spentFor(cat:String):Long = recentTransactions.filter { it.type=="Expense" && (cat=="Overall" || it.category.equals(cat,true)) }.sumOf { it.totalMinor }
-        fun refresh(){
-            list.removeAllViews()
-            budgets.forEachIndexed { index,b ->
-                val spent=spentFor(b.category); val remaining=b.limitMinor-spent
-                val row=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setPadding(0,12,0,12) }
-                row.addView(TextView(this).apply { text=b.name+" • "+b.category; textSize=16f })
-                row.addView(TextView(this).apply { text="Spent "+formatMinor(spent)+" / "+formatMinor(b.limitMinor); textSize=13f })
-                row.addView(TextView(this).apply { text=if(remaining>=0) formatMinor(remaining)+" remaining" else formatMinor(-remaining)+" over"; textSize=13f })
-                row.addView(TextView(this).apply { text="Delete"; isClickable=true; setPadding(12,8,4,8); setOnClickListener { budgets.removeAt(index); persistState(); refresh() } })
-                list.addView(row)
-            }
+        fun spentFor(cat: String): Long = recentTransactions.filter { it.type == "Expense" && (cat == "Overall" || it.category.equals(cat, true)) }.sumOf { it.totalMinor }
+        fun renderBudget(budget: Budget, index: Int) {
+            val spent = spentFor(budget.category)
+            val remaining = budget.limitMinor - spent
+            val percent = if (budget.limitMinor > 0L) ((spent.toDouble() / budget.limitMinor.toDouble()) * 100.0).coerceIn(0.0, 100.0).toInt() else 0
+            val row = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(0, 12, 0, 12) }
+            row.addView(TextView(this).apply { text = budget.name + " • " + budget.category; textSize = 16f })
+            row.addView(TextView(this).apply { text = "Spent ${spentText} / ${limitText} • $percent%".replace("${spentText}", formatMinor(spent)).replace("${limitText}", formatMinor(budget.limitMinor)); textSize = 13f })
+            row.addView(android.widget.ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply { max = 100; progress = percent; layoutParams = LinearLayout.LayoutParams(-1, 12).apply { topMargin = 6; bottomMargin = 6 } })
+            row.addView(TextView(this).apply { text = if (remaining >= 0L) formatMinor(remaining) + " remaining" else formatMinor(-remaining) + " over budget"; textSize = 13f })
+            val actions = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+            actions.addView(TextView(this).apply {
+                text = "Edit"; isClickable = true; setPadding(12, 8, 16, 8)
+                setOnClickListener {
+                    val editBox = LinearLayout(this@MainActivity).apply { orientation = LinearLayout.VERTICAL; setPadding(24, 4, 24, 0) }
+                    val editName = field("Budget name", budget.name, InputType.TYPE_CLASS_TEXT)
+                    val editCategory = dropdownField("Category", listOf("Overall") + categoryNames(), budget.category)
+                    val editLimit = field("Limit", BigDecimal.valueOf(budget.limitMinor, 2).toPlainString(), InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL)
+                    editBox.addView(editName); editBox.addView(editCategory); editBox.addView(editLimit)
+                    MaterialAlertDialogBuilder(this@MainActivity).setTitle("Edit Budget").setView(editBox).setNegativeButton("Cancel", null).setPositiveButton("Save") { _, _ ->
+                        val newName = editName.text.toString().trim(); val newLimit = parseMinor(editLimit.text.toString())
+                        if (newName.isNotEmpty() && newLimit > 0L) { budgets[index] = Budget(newName, editCategory.text.toString().ifBlank { "Overall" }, newLimit); persistState(); refresh() }
+                    }.show()
+                }
+            })
+            actions.addView(TextView(this).apply {
+                text = "Delete"; isClickable = true; setPadding(16, 8, 12, 8)
+                setOnClickListener { MaterialAlertDialogBuilder(this@MainActivity).setTitle("Delete Budget").setMessage("Delete " + budget.name + "?").setNegativeButton("Cancel", null).setPositiveButton("Delete") { _, _ -> budgets.removeAt(index); persistState(); refresh() }.show() }
+            })
+            row.addView(actions); list.addView(row)
         }
-        refresh()
-        MaterialAlertDialogBuilder(this).setTitle("Budgets").setView(box).setNegativeButton("Close",null).setPositiveButton("Add Budget"){_,_->
-            val n=name.text.toString().trim(); val l=parseMinor(limit.text.toString()); val c=category.text.toString().ifBlank{"Overall"}
-            if(n.isNotEmpty()&&l>0){budgets.add(Budget(n,c,l));persistState()}
-        }.show()
+        fun refresh() {
+            list.removeAllViews()
+            if (budgets.isEmpty()) list.addView(TextView(this).apply { text = "No budgets yet. Add a budget to track spending progress."; textSize = 14f; setPadding(0, 12, 0, 12) })
+            else budgets.forEachIndexed { index, budget -> renderBudget(budget, index) }
+        }
+        MaterialAlertDialogBuilder(this).setTitle("Budgets").setView(box).setNegativeButton("Close", null).setPositiveButton("Add Budget", null).create().also { dialog ->
+            dialog.setOnShowListener {
+                refresh()
+                dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                    val newName = name.text.toString().trim(); val newLimit = parseMinor(limit.text.toString()); val newCategory = category.text.toString().ifBlank { "Overall" }
+                    if (newName.isEmpty() || newLimit <= 0L) Snackbar.make(binding.root, "Enter a budget name and valid limit", Snackbar.LENGTH_SHORT).show()
+                    else { budgets.add(Budget(newName, newCategory, newLimit)); name.setText(""); limit.setText("0.00"); persistState(); refresh() }
+                }
+            }; dialog.show()
+        }
     }
 
-    private fun showSavingsGoalManager() {
-        val box=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setPadding(24,4,24,0) }
-        val name=field("Goal name","",InputType.TYPE_CLASS_TEXT)
-        val target=field("Target amount","0.00",InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL)
-        val current=field("Current saved","0.00",InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL)
-        val date=field("Target date (optional)","",InputType.TYPE_CLASS_TEXT)
-        val list=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
-        box.addView(name);box.addView(target);box.addView(current);box.addView(date);box.addView(list)
-        fun refresh(){
-            list.removeAllViews()
-            savingsGoals.forEachIndexed { index,g ->
-                val pct=if(g.targetMinor>0) ((g.currentMinor.toDouble()/g.targetMinor)*100).coerceIn(0.0,100.0).toInt() else 0
-                val row=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(0,12,0,12)}
-                row.addView(TextView(this).apply{text=g.name+" • "+pct+"%";textSize=16f})
-                row.addView(TextView(this).apply{text=formatMinor(g.currentMinor)+" / "+formatMinor(g.targetMinor)+if(g.targetDate.isNotBlank())" • "+g.targetDate else "";textSize=13f})
-                row.addView(TextView(this).apply{text="Delete";isClickable=true;setPadding(12,8,4,8);setOnClickListener{savingsGoals.removeAt(index);persistState();refresh()}})
-                list.addView(row)
+    private fun showReports() {
+        val box = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(24, 4, 24, 0)
+        }
+        val period = dropdownField("Period", listOf("All time", "This month", "This year"), "All time")
+        val summary = TextView(this).apply { textSize = 15f; setPadding(0, 12, 0, 8) }
+        val categoryList = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        val walletList = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        box.addView(period); box.addView(summary)
+        box.addView(TextView(this).apply { text = "Expense by category"; textSize = 17f; setPadding(0, 12, 0, 6) })
+        box.addView(categoryList)
+        box.addView(TextView(this).apply { text = "Expense by wallet"; textSize = 17f; setPadding(0, 16, 0, 6) })
+        box.addView(walletList)
+        fun inPeriod(t: Transaction): Boolean {
+            val now = Calendar.getInstance()
+            val date = Calendar.getInstance().apply { timeInMillis = t.timestampMillis }
+            return when (period.text.toString()) {
+                "This month" -> now.get(Calendar.YEAR) == date.get(Calendar.YEAR) && now.get(Calendar.MONTH) == date.get(Calendar.MONTH)
+                "This year" -> now.get(Calendar.YEAR) == date.get(Calendar.YEAR)
+                else -> true
             }
         }
+        fun refresh() {
+            val filtered = recentTransactions.filter(::inPeriod)
+            val income = filtered.filter { it.type == "Income" }.sumOf { it.totalMinor }
+            val expense = filtered.filter { it.type == "Expense" }.sumOf { it.totalMinor }
+            val transfers = filtered.filter { it.type == "Transfer" }.sumOf { it.totalMinor }
+            summary.text = "Income: ${formatMinor(income)}\nExpenses: ${formatMinor(expense)}\nNet: ${formatMinor(income - expense)}\nTransfers: ${formatMinor(transfers)}\nTransactions: ${filtered.size}"
+            categoryList.removeAllViews()
+            filtered.filter { it.type == "Expense" }.groupBy { it.category }.entries.sortedByDescending { it.value.sumOf(Transaction::totalMinor) }.forEach { (category, items) ->
+                categoryList.addView(TextView(this).apply { text = "$category • ${formatMinor(items.sumOf(Transaction::totalMinor))}"; textSize = 14f; setPadding(0, 5, 0, 5) })
+            }
+            if (categoryList.childCount == 0) categoryList.addView(TextView(this).apply { text = "No expense data"; textSize = 13f })
+            walletList.removeAllViews()
+            filtered.filter { it.type == "Expense" }.groupBy { it.wallet }.entries.sortedByDescending { it.value.sumOf(Transaction::totalMinor) }.forEach { (wallet, items) ->
+                walletList.addView(TextView(this).apply { text = "$wallet • ${formatMinor(items.sumOf(Transaction::totalMinor))}"; textSize = 14f; setPadding(0, 5, 0, 5) })
+            }
+            if (walletList.childCount == 0) walletList.addView(TextView(this).apply { text = "No expense data"; textSize = 13f })
+        }
+        period.setOnItemClickListener { _, _, _, _ -> refresh() }
         refresh()
-        MaterialAlertDialogBuilder(this).setTitle("Savings Goals").setView(box).setNegativeButton("Close",null).setPositiveButton("Add Goal"){_,_->
-            val n=name.text.toString().trim(); val t=parseMinor(target.text.toString()); val c=parseMinor(current.text.toString())
-            if(n.isNotEmpty()&&t>0&&c>=0){savingsGoals.add(SavingsGoal(n,t,c,date.text.toString().trim()));persistState()}
-        }.show()
+        MaterialAlertDialogBuilder(this).setTitle("Reports & Statistics").setView(box).setNegativeButton("Close", null).show()
+    }
+
+    private fun parseReportDate(value: String): Long = try {
+        SimpleDateFormat("dd MMM yyyy, HH:mm", Locale.getDefault()).parse(value)?.time ?: System.currentTimeMillis()
+    } catch (_: Exception) { System.currentTimeMillis() }
+    private fun renderDashboard() {
+        binding.balanceText.text = formatMinor(balanceMinor)
+        binding.incomeText.text = formatMinor(incomeMinor)
+        binding.expenseText.text = formatMinor(expenseMinor)
+        binding.transactionCount.text = "${recentTransactions.size} transactions"
+        binding.recentContainer.removeAllViews()
+        binding.emptyText.visibility = if (recentTransactions.isEmpty()) View.VISIBLE else View.GONE
+        recentTransactions.take(8).forEach { transaction ->
+            val row = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(16, 14, 16, 14) }
+            row.addView(TextView(this).apply { text = transaction.description; textSize = 16f })
+            row.addView(TextView(this).apply { text = "${transaction.type}  •  ${transaction.count} × ${formatMinor(transaction.unitMinor)} × ${formatMinor(transaction.totalMinor)}  •  ${transaction.category}"; textSize = 13f })
+            row.addView(TextView(this).apply { text = transaction.wallet + if (transaction.recurring) "  •  Recurring" else ""; textSize = 12f })
+            if (transaction.items.isNotEmpty()) row.addView(TextView(this).apply { text = "${transaction.items.size} item(s)"; textSize = 12f })
+            binding.recentContainer.addView(row)
+        }
+    }
+
+    private fun renderTransactions() {
+        binding.transactionsContainer.removeAllViews()
+        binding.transactionsEmpty.visibility = if (recentTransactions.isEmpty()) View.VISIBLE else View.GONE
+        binding.transactionsSummary.text = "${recentTransactions.size} transaction(s)"
+        recentTransactions.forEach { transaction ->
+            val row = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(16, 14, 16, 14) }
+            row.addView(TextView(this).apply { text = transaction.description; textSize = 17f })
+            row.addView(TextView(this).apply { text = "${transaction.type}  •  ${formatMinor(transaction.totalMinor)}"; textSize = 14f })
+            row.addView(TextView(this).apply { text = if (transaction.type == "Transfer") transaction.wallet else "${transaction.category}  •  ${transaction.wallet}"; textSize = 12f })
+            if (transaction.items.isNotEmpty()) row.addView(TextView(this).apply { text = "${transaction.items.size} item(s)"; textSize = 12f })
+            binding.transactionsContainer.addView(row)
+        }
+    }
+
+    private fun field(hint: String, value: String, inputType: Int) = EditText(this).apply {
+        this.hint = hint
+        setText(value)
+        this.inputType = inputType
+        textSize = 16f
+        setSingleLine(true)
+        layoutParams = LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = 8 }
+    }
+
+    private fun dropdownField(hint: String, values: List<String>, value: String): AutoCompleteTextView = AutoCompleteTextView(this).apply {
+        this.hint = hint
+        setText(value, false)
+        setAdapter(ArrayAdapter(this@MainActivity, android.R.layout.simple_dropdown_item_1line, values))
+        inputType = InputType.TYPE_CLASS_TEXT
+        textSize = 16f
+        setSingleLine(true)
+        setOnClickListener { showDropDown() }
+        layoutParams = LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = 8 }
+    }
+
+    private fun parseMinor(value: String): Long = try {
+        BigDecimal(value.trim().ifEmpty { "0" }).setScale(2, RoundingMode.HALF_UP).movePointRight(2).longValueExact()
+    } catch (_: Exception) { 0L }
+
+    private fun formatMinor(value: Long): String = NumberFormat.getCurrencyInstance(Locale.getDefault()).format(BigDecimal.valueOf(value, 2))
+    private fun formatDateTime(millis: Long): String = SimpleDateFormat("dd MMM yyyy, HH:mm", Locale.getDefault()).format(Date(millis))
+
+    @Deprecated("Activity Result API migration will be handled with attachment persistence")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == PHOTO_REQUEST && resultCode == RESULT_OK) data?.data?.let { uri ->
+            photoUriHolder = uri
+            contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+    }
+
+    override fun onDestroy() { _binding = null; super.onDestroy() }
+
+    private data class Transaction(val type: String, val count: Long, val unitMinor: Long, val totalMinor: Long, val description: String, var category: String, var wallet: String, val memo: String, val items: List<TransactionItem>, val recurring: Boolean, val timestampMillis: Long = System.currentTimeMillis())
+    private data class Wallet(var name: String, var type: String, var openingMinor: Long)
+    private data class Budget(val name:String,val category:String,val limitMinor:Long)
+    private data class SavingsGoal(val name:String,val targetMinor:Long,val currentMinor:Long,val targetDate:String)
+    private data class TransactionItem(val name: String, val quantity: Long, val unitMinor: Long, val totalMinor: Long)
+    private class ItemDraft {
+        var name = ""
+        var quantity = 1L
+        var unitMinor = 0L
+        fun toTransactionItem(): TransactionItem {
+            val total = try { Math.multiplyExact(quantity, unitMinor) } catch (_: ArithmeticException) { 0L }
+            return TransactionItem(name, quantity, unitMinor, total)
+        }
+    }
+    private class SimpleTextWatcher(private val callback: () -> Unit) : android.text.TextWatcher {
+        override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
+        override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) = callback()
+        override fun afterTextChanged(s: android.text.Editable?) = Unit
+    }
+    private var photoUriHolder: Uri? = null
+    companion object { private const val PHOTO_REQUEST = 7001 }
+}    private fun showSavingsGoalManager() {
+        val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(24, 4, 24, 0) }
+        val name = field("Goal name", "", InputType.TYPE_CLASS_TEXT)
+        val target = field("Target amount", "0.00", InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL)
+        val current = field("Current saved", "0.00", InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL)
+        val date = field("Target date (optional)", "", InputType.TYPE_CLASS_TEXT)
+        val list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        box.addView(name); box.addView(target); box.addView(current); box.addView(date); box.addView(list)
+        fun renderGoal(goal: SavingsGoal, index: Int) {
+            val percent = if (goal.targetMinor > 0L) ((goal.currentMinor.toDouble() / goal.targetMinor.toDouble()) * 100.0).coerceIn(0.0, 100.0).toInt() else 0
+            val remaining = (goal.targetMinor - goal.currentMinor).coerceAtLeast(0L)
+            val row = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(0, 12, 0, 12) }
+            row.addView(TextView(this).apply { text = goal.name + " • $percent%"; textSize = 16f })
+            row.addView(TextView(this).apply { text = formatMinor(goal.currentMinor) + " / " + formatMinor(goal.targetMinor) + if (goal.targetDate.isNotBlank()) " • " + goal.targetDate else ""; textSize = 13f })
+            row.addView(android.widget.ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply { max = 100; progress = percent; layoutParams = LinearLayout.LayoutParams(-1, 12).apply { topMargin = 6; bottomMargin = 6 } })
+            row.addView(TextView(this).apply { text = if (remaining > 0L) formatMinor(remaining) + " remaining" else "Goal reached"; textSize = 13f })
+            val actions = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+            actions.addView(TextView(this).apply {
+                text = "Edit"; isClickable = true; setPadding(12, 8, 16, 8)
+                setOnClickListener {
+                    val editBox = LinearLayout(this@MainActivity).apply { orientation = LinearLayout.VERTICAL; setPadding(24, 4, 24, 0) }
+                    val editName = field("Goal name", goal.name, InputType.TYPE_CLASS_TEXT)
+                    val editTarget = field("Target amount", BigDecimal.valueOf(goal.targetMinor, 2).toPlainString(), InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL)
+                    val editCurrent = field("Current saved", BigDecimal.valueOf(goal.currentMinor, 2).toPlainString(), InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL)
+                    val editDate = field("Target date (optional)", goal.targetDate, InputType.TYPE_CLASS_TEXT)
+                    editBox.addView(editName); editBox.addView(editTarget); editBox.addView(editCurrent); editBox.addView(editDate)
+                    MaterialAlertDialogBuilder(this@MainActivity).setTitle("Edit Savings Goal").setView(editBox).setNegativeButton("Cancel", null).setPositiveButton("Save") { _, _ ->
+                        val newName = editName.text.toString().trim(); val newTarget = parseMinor(editTarget.text.toString()); val newCurrent = parseMinor(editCurrent.text.toString()).coerceAtLeast(0L)
+                        if (newName.isNotEmpty() && newTarget > 0L) { savingsGoals[index] = SavingsGoal(newName, newTarget, newCurrent.coerceAtMost(newTarget), editDate.text.toString().trim()); persistState(); refresh() }
+                    }.show()
+                }
+            })
+            actions.addView(TextView(this).apply {
+                text = "Delete"; isClickable = true; setPadding(16, 8, 12, 8)
+                setOnClickListener { MaterialAlertDialogBuilder(this@MainActivity).setTitle("Delete Savings Goal").setMessage("Delete " + goal.name + "?").setNegativeButton("Cancel", null).setPositiveButton("Delete") { _, _ -> savingsGoals.removeAt(index); persistState(); refresh() }.show() }
+            })
+            row.addView(actions); list.addView(row)
+        }
+        fun refresh() {
+            list.removeAllViews()
+            if (savingsGoals.isEmpty()) list.addView(TextView(this).apply { text = "No savings goals yet. Add a goal to track progress."; textSize = 14f; setPadding(0, 12, 0, 12) })
+            else savingsGoals.forEachIndexed { index, goal -> renderGoal(goal, index) }
+        }
+        MaterialAlertDialogBuilder(this).setTitle("Savings Goals").setView(box).setNegativeButton("Close", null).setPositiveButton("Add Goal", null).create().also { dialog ->
+            dialog.setOnShowListener {
+                refresh()
+                dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                    val newName = name.text.toString().trim(); val newTarget = parseMinor(target.text.toString()); val newCurrent = parseMinor(current.text.toString()).coerceAtLeast(0L)
+                    if (newName.isEmpty() || newTarget <= 0L) Snackbar.make(binding.root, "Enter a goal name and valid target", Snackbar.LENGTH_SHORT).show()
+                    else { savingsGoals.add(SavingsGoal(newName, newTarget, newCurrent.coerceAtMost(newTarget), date.text.toString().trim())); name.setText(""); target.setText("0.00"); current.setText("0.00"); date.setText(""); persistState(); refresh() }
+                }
+            }; dialog.show()
+        }
     }
 
     private fun showReports() {
