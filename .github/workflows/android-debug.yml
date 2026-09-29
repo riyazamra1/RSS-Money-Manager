@@ -34,7 +34,21 @@ jobs:
         run: chmod +x gradlew
 
       - name: Build debug APK
-        run: ./gradlew --no-daemon --console=plain :app:assembleDebug
+        run: ./gradlew --no-daemon --console=plain :app:assembleDebug --stacktrace
+
+      - name: Capture Gradle diagnostics on failure
+        if: failure()
+        run: |
+          ./gradlew --no-daemon --console=plain :app:assembleDebug --stacktrace --info > build-failure.log 2>&1 || true
+
+      - name: Upload build failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rss-money-manager-build-failure-diagnostics
+          path: build-failure.log
+          if-no-files-found: warn
+          retention-days: 7
 
       - name: Upload debug APK artifact
         uses: actions/upload-artifact@v4
