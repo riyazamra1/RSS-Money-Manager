@@ -53,6 +53,7 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         _binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        RssDynamicPricing.refresh(this)
         setupMagicNavigation()
         binding.menuButton.setOnClickListener { startActivity(Intent(this, RssKitMenuActivity::class.java)) }
         binding.addTransactionButton.setOnClickListener { showTransactionDialog() }
