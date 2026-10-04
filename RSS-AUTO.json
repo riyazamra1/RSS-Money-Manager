@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "autonomous": true,
+  "auto_implement": true,
+  "continuous": true,
+  "project": "RSS Money Manager",
+  "platform": "android",
+  "build": {
+    "command": "bash ./gradlew assembleDebug",
+    "artifact": "app/build/outputs/apk/debug/app-debug.apk"
+  },
+  "verification": {
+    "required": true,
+    "runtime_emulator": false
+  },
+  "deployment": {
+    "enabled": false
+  }
+}
