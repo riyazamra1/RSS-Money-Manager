@@ -13,7 +13,9 @@
     "required": true,
     "runtime_emulator": false
   },
-  "deployment": {
-    "enabled": false
+  "deploy": {
+    "enabled": true,
+    "provider": "cloudflare-pages",
+    "command": "if ! command -v wrangler >/dev/null 2>&1; then echo 'Cloudflare Wrangler is not installed'; exit 127; fi; if [[ -z \"${CLOUDFLARE_API_TOKEN:-}\" || -z \"${CLOUDFLARE_ACCOUNT_ID:-}\" ]]; then echo 'Cloudflare credentials are not configured'; exit 126; fi; wrangler pages deploy ./app/build/outputs/apk/debug --project-name rss-money-manager --commit-dirty=true"
   }
 }
