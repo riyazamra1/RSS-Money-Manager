@@ -103,187 +103,93 @@ class MainActivity : AppCompatActivity() {
         screen.animate().alpha(1f).translationY(0f).setDuration(240L).start()
     }
 
-    private fun showTransactionDialog() {
-        val container = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(24, 8, 24, 0)
-        }
+    private fun showTransactionDialog() = showTransactionEditor()
 
-        var selectedType = "Expense"
-        val tabs = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            setPadding(0, 4, 0, 12)
-        }
-        val incomeTab = entryTab("Income")
-        val expenseTab = entryTab("Expenses")
-        val transferTab = entryTab("Transfer")
-        tabs.addView(incomeTab, LinearLayout.LayoutParams(0, -2, 1f))
-        tabs.addView(expenseTab, LinearLayout.LayoutParams(0, -2, 1f).apply { marginStart = 6; marginEnd = 6 })
-        tabs.addView(transferTab, LinearLayout.LayoutParams(0, -2, 1f))
-
-        val dateTime = TextView(this).apply {
-            text = formatDateTime(System.currentTimeMillis())
-            textSize = 15f
-            setPadding(0, 8, 0, 8)
-            isClickable = true
-        }
+    private fun showTransactionEditor(existing: Transaction? = null, editIndex: Int = -1) {
+        val root = binding.root as? android.view.ViewGroup ?: return
+        val page = android.widget.FrameLayout(this).apply { setBackgroundColor(resolveThemeColor(android.R.attr.colorBackground)); elevation = 24f }
+        val scroll = android.widget.ScrollView(this).apply { isFillViewport = true; clipToPadding = false }
+        val content = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(20, 8, 20, 24) }
+        val toolbar = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = android.view.Gravity.CENTER_VERTICAL; minimumHeight = 64 }
+        val back = TextView(this).apply { text = "‹"; textSize = 38f; gravity = android.view.Gravity.CENTER; setPadding(4, 0, 18, 0); isClickable = true; contentDescription = "Back" }
+        val title = TextView(this).apply { text = if (existing == null) "Add Transaction" else "Edit Transaction"; textSize = 21f; setTypeface(typeface, android.graphics.Typeface.BOLD); layoutParams = LinearLayout.LayoutParams(0, -2, 1f) }
+        val save = TextView(this).apply { text = "SAVE"; textSize = 14f; setTypeface(typeface, android.graphics.Typeface.BOLD); setPadding(18, 12, 4, 12); isClickable = true }
+        toolbar.addView(back); toolbar.addView(title); toolbar.addView(save); content.addView(toolbar)
+        var selectedType = existing?.type ?: "Expense"
+        val tabs = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(0, 4, 0, 16) }
+        val incomeTab = entryTab("Income"); val expenseTab = entryTab("Expenses"); val transferTab = entryTab("Transfer")
+        tabs.addView(incomeTab, LinearLayout.LayoutParams(0, -2, 1f)); tabs.addView(expenseTab, LinearLayout.LayoutParams(0, -2, 1f).apply { marginStart = 6; marginEnd = 6 }); tabs.addView(transferTab, LinearLayout.LayoutParams(0, -2, 1f))
+        val dateTime = TextView(this).apply { text = formatDateTime(existing?.timestampMillis ?: System.currentTimeMillis()); textSize = 15f; setPadding(0, 12, 0, 12); isClickable = true }
         dateTime.setOnClickListener { pickDateTime(dateTime) }
-        val recurring = TextView(this).apply {
-            text = "↻  Recurring: Off"
-            textSize = 15f
-            setPadding(0, 8, 0, 12)
-            isClickable = true
-        }
-        recurring.setOnClickListener {
-            recurring.text = if (recurring.text.toString().endsWith("Off")) "↻  Recurring: On" else "↻  Recurring: Off"
-        }
-
-        val count = field("Count", "1", InputType.TYPE_CLASS_NUMBER)
-        val amount = field("Amount", "0.00", InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL)
-        val total = TextView(this).apply {
-            textSize = 19f
-            setPadding(0, 10, 0, 14)
-            text = "Total: ${formatMinor(0L)}"
-        }
-        val countAmountRow = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            addView(count, LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = 8 })
-            addView(amount, LinearLayout.LayoutParams(0, -2, 1f).apply { marginStart = 8 })
-        }
-        fun recalculate() {
-            val c = count.text.toString().toLongOrNull()?.coerceAtLeast(1L) ?: 1L
-            val unit = parseMinor(amount.text.toString())
-            val calculated = try { Math.multiplyExact(c, unit) } catch (_: ArithmeticException) { Long.MAX_VALUE }
-            total.text = if (calculated == Long.MAX_VALUE) "Total: —" else "Total: ${formatMinor(calculated)}"
-        }
-        count.addTextChangedListener(SimpleTextWatcher { recalculate() })
-        amount.addTextChangedListener(SimpleTextWatcher { recalculate() })
-        recalculate()
-
-        val description = field("Description", "", InputType.TYPE_CLASS_TEXT)
-        val category = dropdownField("Category", categoryNames(), categoryNames().firstOrNull() ?: "Other")
-        val walletNames = walletNames()
-        val wallet = dropdownField("Wallet", walletNames, walletNames.firstOrNull() ?: "Cash")
-        val fromWallet = dropdownField("From Account / Wallet", walletNames, walletNames.firstOrNull() ?: "Cash")
-        val toWallet = dropdownField("To Account / Wallet", walletNames, walletNames.getOrNull(1) ?: walletNames.firstOrNull() ?: "Cash")
-        val itemsSection = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; visibility = View.GONE }
-        val itemsSummary = TextView(this).apply { textSize = 14f; setPadding(0, 4, 0, 4) }
-        val itemRows = mutableListOf<ItemDraft>()
-        val addItemButton = TextView(this).apply {
-            text = "+ Add item"
-            textSize = 15f
-            setPadding(0, 10, 0, 10)
-            isClickable = true
-        }
-        addItemButton.setOnClickListener {
-            val item = ItemDraft()
-            itemRows.add(item)
-            itemsSection.visibility = View.VISIBLE
-            addItemEditor(itemsSection, item, itemsSummary)
-            itemsSummary.text = "${itemRows.size} item(s)"
-        }
-        val photoButton = TextView(this).apply {
-            text = "📷  Add product photo"
-            textSize = 15f
-            setPadding(0, 10, 0, 10)
-            isClickable = true
-        }
-        photoButton.setOnClickListener {
-            val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply { type = "image/*"; addCategory(Intent.CATEGORY_OPENABLE) }
-            @Suppress("DEPRECATION") startActivityForResult(intent, PHOTO_REQUEST)
-            photoButton.setText("📷  Product photo selected")
-        }
-        val memo = field("Memo (optional)", "", InputType.TYPE_CLASS_TEXT)
-
-        fun selectType(type: String) {
-            selectedType = type
-            val active = listOf(incomeTab, expenseTab, transferTab)
-            active.forEach { it.isSelected = it.text.toString() == type || (type == "Expense" && it.text.toString() == "Expenses") }
-            val transfer = type == "Transfer"
-            countAmountRow.visibility = if (transfer) View.GONE else View.VISIBLE
-            total.visibility = if (transfer) View.GONE else View.VISIBLE
-            category.visibility = if (transfer) View.GONE else View.VISIBLE
-            wallet.visibility = if (transfer) View.GONE else View.VISIBLE
-            fromWallet.visibility = if (transfer) View.VISIBLE else View.GONE
-            toWallet.visibility = if (transfer) View.VISIBLE else View.GONE
-            recurring.visibility = if (transfer) View.GONE else View.VISIBLE
-            addItemButton.visibility = if (transfer) View.GONE else View.VISIBLE
-            itemsSection.visibility = if (transfer) View.GONE else itemsSection.visibility
-            itemsSummary.visibility = if (transfer) View.GONE else View.VISIBLE
-            photoButton.visibility = if (transfer) View.GONE else View.VISIBLE
-        }
-        incomeTab.setOnClickListener { selectType("Income") }
-        expenseTab.setOnClickListener { selectType("Expense") }
-        transferTab.setOnClickListener { selectType("Transfer") }
-
-        container.addView(tabs)
-        container.addView(dateTime)
-        container.addView(recurring)
-        container.addView(countAmountRow)
-        container.addView(total)
-        container.addView(description)
-        container.addView(addItemButton)
-        container.addView(itemsSection)
-        container.addView(itemsSummary)
-        container.addView(category)
-        container.addView(wallet)
-        container.addView(fromWallet)
-        container.addView(toWallet)
-        container.addView(TextView(this).apply { text = "────────────"; setPadding(0, 6, 0, 2) })
-        container.addView(photoButton)
-        container.addView(memo)
-
-        val dialog = MaterialAlertDialogBuilder(this)
-            .setTitle("Add Transaction")
-            .setView(container)
-            .setNegativeButton("Cancel", null)
-            .setPositiveButton("Save", null)
-            .create()
-        dialog.setOnShowListener {
-            selectType("Expense")
-            dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE).setOnClickListener {
-                val desc = description.text.toString().trim()
-                if (desc.isEmpty()) {
-                    Snackbar.make(binding.root, "Enter a description", Snackbar.LENGTH_SHORT).show()
-                    return@setOnClickListener
-                }
-
-                if (selectedType == "Transfer") {
-                    val transferAmount = parseMinor(amount.text.toString())
-                    val from = fromWallet.text.toString().trim().ifEmpty { "Cash" }
-                    val to = toWallet.text.toString().trim().ifEmpty { "Bank" }
-                    if (transferAmount <= 0L) {
-                        Snackbar.make(binding.root, "Enter a valid transfer amount", Snackbar.LENGTH_SHORT).show()
-                        return@setOnClickListener
-                    }
-                    if (from == to) {
-                        Snackbar.make(binding.root, "From and To accounts must be different", Snackbar.LENGTH_SHORT).show()
-                        return@setOnClickListener
-                    }
-                    recentTransactions.add(0, Transaction("Transfer", 1L, transferAmount, transferAmount, desc, "Transfer", "$from → $to", memo.text.toString().trim(), emptyList(), false, parseReportDate(dateTime.text.toString())))
-                } else {
-                    val c = count.text.toString().toLongOrNull()?.coerceAtLeast(1L) ?: 1L
-                    val unit = parseMinor(amount.text.toString())
-                    val calculatedTotal = try { Math.multiplyExact(c, unit) } catch (_: ArithmeticException) { Long.MAX_VALUE }
-                    if (unit <= 0L || calculatedTotal == Long.MAX_VALUE) {
-                        Snackbar.make(binding.root, "Enter a valid amount", Snackbar.LENGTH_SHORT).show()
-                        return@setOnClickListener
-                    }
-                    val transactionType = if (selectedType == "Income") "Income" else "Expense"
-                    val transaction = Transaction(transactionType, c, unit, calculatedTotal, desc, category.text.toString().trim().ifEmpty { "Uncategorized" }, wallet.text.toString().trim().ifEmpty { "Cash" }, memo.text.toString().trim(), itemRows.map { it.toTransactionItem() }, recurring.text.toString().endsWith("On"), parseReportDate(dateTime.text.toString()))
-                    recentTransactions.add(0, transaction)
-                }
-
-                recalculateFinancialState()
-                persistState()
-                renderDashboard()
-                renderTransactions()
-                renderAccounts()
-                dialog.dismiss()
-                showScreen(binding.transactionsScreen)
+        val recurring = TextView(this).apply { text = if (existing?.recurring == true) "↻  Recurring: On" else "↻  Recurring: Off"; textSize = 15f; setPadding(0, 8, 0, 14); isClickable = true }
+        recurring.setOnClickListener { recurring.text = if (recurring.text.toString().endsWith("Off")) "↻  Recurring: On" else "↻  Recurring: Off" }
+        val count = field("Count", (existing?.count ?: 1L).toString(), InputType.TYPE_CLASS_NUMBER)
+        val amount = field("Amount", BigDecimal.valueOf(existing?.unitMinor ?: 0L, 2).toPlainString(), InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL)
+        val total = TextView(this).apply { textSize = 19f; setPadding(0, 10, 0, 16); setTypeface(typeface, android.graphics.Typeface.BOLD) }
+        val countAmountRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; addView(count, LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = 8 }); addView(amount, LinearLayout.LayoutParams(0, -2, 1f).apply { marginStart = 8 }) }
+        fun recalculate() { val c = count.text.toString().toLongOrNull()?.coerceAtLeast(1L) ?: 1L; val unit = parseMinor(amount.text.toString()); val calculated = try { Math.multiplyExact(c, unit) } catch (_: ArithmeticException) { Long.MAX_VALUE }; total.text = if (calculated == Long.MAX_VALUE) "Total: —" else "Total: ${formatMinor(calculated)}" }
+        count.addTextChangedListener(SimpleTextWatcher { recalculate() }); amount.addTextChangedListener(SimpleTextWatcher { recalculate() })
+        val description = field("Description", existing?.description ?: "", InputType.TYPE_CLASS_TEXT)
+        val categoryValues = categoryNames(); val category = dropdownField("Category", categoryValues, existing?.category ?: categoryValues.firstOrNull().orEmpty())
+        val walletValues = walletNames(); val wallet = dropdownField("Wallet", walletValues, existing?.wallet ?: walletValues.firstOrNull().orEmpty())
+        val fromWallet = dropdownField("From Account / Wallet", walletValues, walletValues.firstOrNull().orEmpty()); val toWallet = dropdownField("To Account / Wallet", walletValues, walletValues.getOrNull(1) ?: walletValues.firstOrNull().orEmpty())
+        val itemsSection = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        val itemRows = existing?.items?.map { item -> ItemDraft().apply { name = item.name; quantity = item.quantity; unitMinor = item.unitMinor } }?.toMutableList() ?: mutableListOf()
+        val itemsSummary = TextView(this).apply { textSize = 14f; setPadding(0, 4, 0, 6) }
+        val addItemButton = TextView(this).apply { text = "+ Add item"; textSize = 15f; setPadding(0, 10, 0, 10); isClickable = true }
+        fun renderItems() {
+            itemsSection.removeAllViews(); itemsSummary.text = if (itemRows.isEmpty()) "" else "${itemRows.size} item(s)"
+            itemRows.forEachIndexed { index, item ->
+                val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = android.view.Gravity.CENTER_VERTICAL; setPadding(0, 6, 0, 6) }
+                row.addView(TextView(this).apply { text = "${item.name.ifBlank { "Item" }}  •  ${item.quantity} × ${formatMinor(item.unitMinor)}"; textSize = 14f; layoutParams = LinearLayout.LayoutParams(0, -2, 1f) })
+                row.addView(TextView(this).apply { text = "Remove"; isClickable = true; setPadding(10, 8, 0, 8); setOnClickListener { itemRows.removeAt(index); renderItems() } })
+                itemsSection.addView(row)
             }
+            itemsSection.visibility = if (itemRows.isEmpty()) View.GONE else View.VISIBLE
         }
-        dialog.show()
+        fun addItemEditor() {
+            val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(0, 8, 0, 8) }
+            val name = field("Product name", "", InputType.TYPE_CLASS_TEXT); val qty = field("Quantity", "1", InputType.TYPE_CLASS_NUMBER); val price = field("Unit price", "0.00", InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL)
+            box.addView(name); box.addView(qty); box.addView(price)
+            val actions = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = android.view.Gravity.END }
+            val cancel = TextView(this).apply { text = "Cancel"; isClickable = true; setPadding(14, 10, 14, 10) }; val add = TextView(this).apply { text = "Add"; isClickable = true; setPadding(14, 10, 4, 10) }
+            actions.addView(cancel); actions.addView(add); box.addView(actions); cancel.setOnClickListener { content.removeView(box) }
+            add.setOnClickListener { val q = qty.text.toString().toLongOrNull()?.coerceAtLeast(1L) ?: 1L; val u = parseMinor(price.text.toString()); if (name.text.toString().trim().isEmpty() || u <= 0L) { Snackbar.make(binding.root, "Enter a product name and valid price", Snackbar.LENGTH_SHORT).show(); return@setOnClickListener }; itemRows.add(ItemDraft().apply { this.name = name.text.toString().trim(); quantity = q; unitMinor = u }); content.removeView(box); renderItems() }
+            content.addView(box, content.indexOfChild(itemsSection))
+        }
+        addItemButton.setOnClickListener { addItemEditor() }; renderItems()
+        val photoButton = TextView(this).apply { text = "📷  Add product photo"; textSize = 15f; setPadding(0, 10, 0, 10); isClickable = true }
+        photoButton.setOnClickListener { val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply { type = "image/*"; addCategory(Intent.CATEGORY_OPENABLE) }; @Suppress("DEPRECATION") startActivityForResult(intent, PHOTO_REQUEST); photoButton.text = "📷  Product photo selected" }
+        val memo = field("Memo (optional)", existing?.memo ?: "", InputType.TYPE_CLASS_TEXT)
+        fun selectType(type: String) {
+            selectedType = type; listOf(incomeTab, expenseTab, transferTab).forEach { it.isSelected = it.text.toString() == type || (type == "Expense" && it.text.toString() == "Expenses") }
+            val transfer = type == "Transfer"; countAmountRow.visibility = if (transfer) View.GONE else View.VISIBLE; total.visibility = if (transfer) View.GONE else View.VISIBLE; category.visibility = if (transfer) View.GONE else View.VISIBLE; wallet.visibility = if (transfer) View.GONE else View.VISIBLE; fromWallet.visibility = if (transfer) View.VISIBLE else View.GONE; toWallet.visibility = if (transfer) View.VISIBLE else View.GONE; recurring.visibility = if (transfer) View.GONE else View.VISIBLE; addItemButton.visibility = if (transfer) View.GONE else View.VISIBLE; itemsSection.visibility = if (transfer || itemRows.isEmpty()) View.GONE else View.VISIBLE; itemsSummary.visibility = if (transfer) View.GONE else View.VISIBLE; photoButton.visibility = if (transfer) View.GONE else View.VISIBLE
+        }
+        incomeTab.setOnClickListener { selectType("Income") }; expenseTab.setOnClickListener { selectType("Expense") }; transferTab.setOnClickListener { selectType("Transfer") }
+        content.addView(tabs); content.addView(dateTime); content.addView(recurring); content.addView(countAmountRow); content.addView(total); content.addView(description); content.addView(addItemButton); content.addView(itemsSection); content.addView(itemsSummary); content.addView(category); content.addView(wallet); content.addView(fromWallet); content.addView(toWallet); content.addView(TextView(this).apply { text = "────────────────"; setPadding(0, 8, 0, 2) }); content.addView(memo); content.addView(photoButton)
+        scroll.addView(content); page.addView(scroll, android.widget.FrameLayout.LayoutParams(-1, -1)); root.addView(page, android.view.ViewGroup.LayoutParams(-1, -1))
+        fun closePage() { root.removeView(page) }; back.setOnClickListener { closePage() }
+        save.setOnClickListener {
+            val desc = description.text.toString().trim(); if (desc.isEmpty()) { Snackbar.make(binding.root, "Enter a description", Snackbar.LENGTH_SHORT).show(); return@setOnClickListener }
+            val timestamp = parseReportDate(dateTime.text.toString()); val transaction: Transaction
+            if (selectedType == "Transfer") {
+                val transferAmount = parseMinor(amount.text.toString()); val from = fromWallet.text.toString().trim().ifEmpty { "Cash" }; val to = toWallet.text.toString().trim().ifEmpty { "Bank" }
+                if (transferAmount <= 0L || from == to) { Snackbar.make(binding.root, "Enter a valid transfer and use different accounts", Snackbar.LENGTH_SHORT).show(); return@setOnClickListener }
+                transaction = Transaction("Transfer", 1L, transferAmount, transferAmount, desc, "Transfer", "$from → $to", memo.text.toString().trim(), emptyList(), false, timestamp)
+            } else {
+                val c = count.text.toString().toLongOrNull()?.coerceAtLeast(1L) ?: 1L; val unit = parseMinor(amount.text.toString()); val calculated = try { Math.multiplyExact(c, unit) } catch (_: ArithmeticException) { Long.MAX_VALUE }
+                if (unit <= 0L || calculated == Long.MAX_VALUE) { Snackbar.make(binding.root, "Enter a valid amount", Snackbar.LENGTH_SHORT).show(); return@setOnClickListener }
+                transaction = Transaction(if (selectedType == "Income") "Income" else "Expense", c, unit, calculated, desc, category.text.toString().trim().ifEmpty { "Uncategorized" }, wallet.text.toString().trim().ifEmpty { "Cash" }, memo.text.toString().trim(), itemRows.map { it.toTransactionItem() }, recurring.text.toString().endsWith("On"), timestamp)
+            }
+            if (editIndex >= 0 && editIndex < recentTransactions.size) recentTransactions[editIndex] = transaction else recentTransactions.add(0, transaction)
+            recalculateFinancialState(); persistState(); renderDashboard(); renderTransactions(); renderAccounts(); closePage(); showScreen(binding.transactionsScreen)
+        }
+        selectType(selectedType); recalculate()
+    }
+
+    private fun resolveThemeColor(attr: Int): Int {
+        val tv = android.util.TypedValue(); theme.resolveAttribute(attr, tv, true)
+        return if (tv.resourceId != 0) androidx.core.content.ContextCompat.getColor(this, tv.resourceId) else tv.data
     }
 
     private fun categoryNames(): List<String> = categories.ifEmpty { defaultCategories }
@@ -825,6 +731,8 @@ class MainActivity : AppCompatActivity() {
             row.addView(TextView(this).apply { text = "${transaction.type}  •  ${transaction.count} × ${formatMinor(transaction.unitMinor)} × ${formatMinor(transaction.totalMinor)}  •  ${transaction.category}"; textSize = 13f })
             row.addView(TextView(this).apply { text = transaction.wallet + if (transaction.recurring) "  •  Recurring" else ""; textSize = 12f })
             if (transaction.items.isNotEmpty()) row.addView(TextView(this).apply { text = "${transaction.items.size} item(s)"; textSize = 12f })
+            row.isClickable = true
+            row.setOnClickListener { val index = recentTransactions.indexOf(transaction); if (index >= 0) showTransactionEditor(transaction, index) }
             binding.recentContainer.addView(row)
         }
     }
@@ -839,6 +747,8 @@ class MainActivity : AppCompatActivity() {
             row.addView(TextView(this).apply { text = "${transaction.type}  •  ${formatMinor(transaction.totalMinor)}"; textSize = 14f })
             row.addView(TextView(this).apply { text = if (transaction.type == "Transfer") transaction.wallet else "${transaction.category}  •  ${transaction.wallet}"; textSize = 12f })
             if (transaction.items.isNotEmpty()) row.addView(TextView(this).apply { text = "${transaction.items.size} item(s)"; textSize = 12f })
+            row.isClickable = true
+            row.setOnClickListener { val index = recentTransactions.indexOf(transaction); if (index >= 0) showTransactionEditor(transaction, index) }
             binding.transactionsContainer.addView(row)
         }
     }
