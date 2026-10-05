@@ -80,22 +80,42 @@ class RssKitAccountClient(private val context: Context) {
         editor.apply()
     }
 
-    private fun deviceId(): String = Settings.Secure.getString(context.contentResolver, Settings.Secure.ANDROID_ID)?.takeIf { it.isNotBlank() } ?: "android-" + android.os.Build.FINGERPRINT.hashCode()
+    private fun deviceId(): String =
+        Settings.Secure.getString(context.contentResolver, Settings.Secure.ANDROID_ID)
+            ?.takeIf { it.isNotBlank() }
+            ?: ("android-" + android.os.Build.FINGERPRINT.hashCode())
 
-    private fun getJson(path: String): JSONObject { val connection = open(path, "GET"); return readResponse(connection) }
+    private fun getJson(path: String): JSONObject {
+        val connection = open(path, "GET")
+        return readResponse(connection)
+    }
     private fun postJson(path: String, body: JSONObject): JSONObject {
-        val connection = open(path, "POST"); connection.doOutput = true; connection.setRequestProperty("Content-Type", "application/json")
-        connection.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }; return readResponse(connection)
+        val connection = open(path, "POST")
+        connection.doOutput = true
+        connection.setRequestProperty("Content-Type", "application/json")
+        connection.outputStream.use {
+            it.write(body.toString().toByteArray(Charsets.UTF_8))
+        }
+        return readResponse(connection)
     }
 
-    private fun open(path: String, method: String): HttpURLConnection = (URL(BASE_URL + path).openConnection() as HttpURLConnection).apply {
-        requestMethod = method; connectTimeout = 12_000; readTimeout = 15_000; useCaches = false
-        setRequestProperty("Accept", "application/json"); setRequestProperty("X-RSS-App-Id", PROJECT_KEY)
-    }
+    private fun open(path: String, method: String): HttpURLConnection =
+        (URL(BASE_URL + path).openConnection() as HttpURLConnection).apply {
+            requestMethod = method
+            connectTimeout = 12_000
+            readTimeout = 15_000
+            useCaches = false
+            setRequestProperty("Accept", "application/json")
+            setRequestProperty("X-RSS-App-Id", PROJECT_KEY)
+        }
 
     private fun readResponse(connection: HttpURLConnection): JSONObject {
         connection.connect()
-        val stream = if (connection.responseCode in 200..399) connection.inputStream else connection.errorStream
+        val stream = if (connection.responseCode in 200..399) {
+            connection.inputStream
+        } else {
+            connection.errorStream
+        }
         val text = BufferedReader(InputStreamReader(stream, Charsets.UTF_8)).use { it.readText() }
         val json = runCatching { JSONObject(text) }.getOrElse { JSONObject().put("error", text.ifBlank { "RSS KIT account service unavailable" }) }
         if (connection.responseCode !in 200..399 && !json.has("error")) json.put("error", "RSS KIT account request failed (" + connection.responseCode + ")")
