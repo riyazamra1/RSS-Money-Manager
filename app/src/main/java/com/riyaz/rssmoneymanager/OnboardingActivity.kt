@@ -264,5 +264,10 @@ class OnboardingActivity : AppCompatActivity() {
 
     private fun dp(value: Int) = (value * resources.displayMetrics.density).toInt()
 
-    override fun onDestroy() {\n        accountExecutor.shutdownNow()\n        super.onDestroy()\n    }\n\n    companion object { private const val KEY_ONBOARDING_COMPLETE = "onboarding_complete" }
+    override fun onDestroy() {
+        accountExecutor.shutdownNow()
+        super.onDestroy()
+    }
+
+    companion object { private const val KEY_ONBOARDING_COMPLETE = "onboarding_complete" }
 }
