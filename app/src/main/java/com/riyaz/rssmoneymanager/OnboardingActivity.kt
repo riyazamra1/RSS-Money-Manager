@@ -7,8 +7,8 @@ import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
-import java.util.concurrent.Executors
 import androidx.appcompat.app.AppCompatActivity
+import java.util.concurrent.Executors
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.snackbar.Snackbar
 
