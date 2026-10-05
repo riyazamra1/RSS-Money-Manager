@@ -12,7 +12,11 @@ RSS_MONEY_MANAGER_SDK="${RSS_MONEY_MANAGER_SDK:-$RSS_MONEY_MANAGER_ROOT/android-
 # AndroidIDE may export a shared cache containing an incompatible Linux AAPT2
 # binary for the ARM64 proot environment. GitHub Actions must use a writable
 # workspace-local Gradle home instead of the Ubuntu root user's home.
-if [ "${CI:-}" = "true" ]; then
+# Respect an explicit GRADLE_USER_HOME supplied by RSS AUTO, CI, or the user.
+# Only fall back to the AndroidIDE/legacy locations when no external value exists.
+if [ -n "${GRADLE_USER_HOME:-}" ]; then
+  :
+elif [ "${CI:-}" = "true" ]; then
   GRADLE_USER_HOME="${APP_HOME}/.gradle"
 elif [ -d "/data/data/com.itsaky.androidide/files/home" ]; then
   GRADLE_USER_HOME="/data/data/com.itsaky.androidide/files/home/.gradle-rss-money-manager"
