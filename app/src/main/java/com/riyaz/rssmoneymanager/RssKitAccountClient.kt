@@ -44,7 +44,12 @@ class RssKitAccountClient(private val context: Context) {
         saveAccount(response)
         val verified = response.optBoolean("email_verified", false)
         val pending = response.optBoolean("registered", false) && !verified
-        return Result(response.optBoolean("registered", false), when { verified -> "RSS KIT account verified." pending -> "RSS KIT email verification is still pending." else -> "RSS KIT account was not found." }, pending, verified)
+        val message = when {
+            verified -> "RSS KIT account verified."
+            pending -> "RSS KIT email verification is still pending."
+            else -> "RSS KIT account was not found."
+        }
+        return Result(response.optBoolean("registered", false), message, pending, verified)
     }
 
     fun resendVerification(): Result = postJson("/api/v1/license/resend-verification", JSONObject()
