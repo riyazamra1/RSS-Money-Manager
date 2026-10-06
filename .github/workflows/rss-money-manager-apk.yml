@@ -1,28 +1,31 @@
-name: RSS Money Manager APK
+name: RSS Money Manager - Autonomous Build Fix Loop
 
 on:
   push:
     branches: [ main ]
   pull_request:
     branches: [ main ]
-  workflow_dispatch:
   schedule:
     - cron: "*/15 * * * *"
+  workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
+  pull-requests: write
 
 concurrency:
-  group: rmm-apk-${{ github.workflow }}-${{ github.ref }}
+  group: rmm-autonomous-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  build:
+  autonomous:
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -34,28 +37,100 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Install Android SDK packages
-        run: |
-          sdkmanager "platforms;android-36" "build-tools;36.0.0"
+      - name: Install Android SDK
+        run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
 
-      - name: Make Gradle executable
+      - name: Prepare
         run: chmod +x gradlew
 
-      - name: Validate Gradle wrapper
-        run: ./gradlew --version
-
-      - name: Build debug APK
+      - name: Build-test-fix-repeat
         env:
-          CI: true
-        run: ./gradlew --no-daemon --stacktrace assembleDebug
-
-      - name: Verify APK
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
         run: |
+          set -u
+          mkdir -p .automation
+          success=0
+
+          for attempt in 1 2 3; do
+            echo "=== RMM autonomous attempt $attempt/3 ==="
+            if ./gradlew --no-daemon --stacktrace assembleDebug 2>&1 | tee ".automation/build-$attempt.log"; then
+              success=1
+              break
+            fi
+
+            if [ -z "${GEMINI_API_KEY:-}" ]; then
+              echo "::error::GEMINI_API_KEY repository secret is required for automatic code repair."
+              exit 1
+            fi
+
+            python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          log = Path(".automation/build-"+os.environ["attempt"]+".log").read_text(errors="replace")[-30000:]
+          files = []
+          for p in Path(".").rglob("*"):
+              if not p.is_file() or ".git" in p.parts or ".gradle" in p.parts or "build" in p.parts:
+                  continue
+              if p.suffix in {".kt",".java",".xml",".gradle",".kts",".properties",".toml"}:
+                  try:
+                      s=p.read_text(errors="replace")
+                      if len(s) <= 50000:
+                          files.append({"path":str(p),"content":s})
+                  except Exception:
+                      pass
+          prompt = {
+            "task":"Fix the Android project so assembleDebug succeeds. Return ONLY a valid unified git diff that can be applied with git apply. Do not change branding, package name, application behavior, or unrelated code. Make the smallest safe compile/build fix.",
+            "build_log":log,
+            "files":files[:80]
+          }
+          Path(".automation/prompt.json").write_text(json.dumps(prompt))
+          PY
+            export attempt
+            python3 - <<'PY'
+          import json, os, urllib.request
+          body=json.loads(open(".automation/prompt.json").read())
+          req=urllib.request.Request(
+            "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key="+os.environ["GEMINI_API_KEY"],
+            data=json.dumps({"contents":[{"parts":[{"text":json.dumps(body)}]}]}).encode(),
+            headers={"Content-Type":"application/json"},
+            method="POST")
+          with urllib.request.urlopen(req, timeout=120) as r:
+              data=json.load(r)
+          text=data["candidates"][0]["content"]["parts"][0]["text"]
+          if text.startswith("```"):
+              text=text.split("\n",1)[1] if "\n" in text else text
+              if text.endswith("```"):
+                  text=text[:-3]
+          open(".automation/fix.patch","w").write(text.strip()+"\n")
+          PY
+            if ! git apply --check .automation/fix.patch; then
+              echo "::error::Gemini produced a patch that cannot be applied."
+              cat .automation/fix.patch
+              exit 1
+            fi
+            git apply .automation/fix.patch
+            git config user.name "RSS Autonomous Builder"
+            git config user.email "actions@users.noreply.github.com"
+            git add -A
+            git commit -m "fix: autonomous Android build repair (attempt $attempt)" || true
+          done
+
+          if [ "$success" -ne 1 ]; then
+            echo "::error::Autonomous repair exhausted all 3 attempts."
+            exit 1
+          fi
+
           test -s app/build/outputs/apk/debug/app-debug.apk
           file app/build/outputs/apk/debug/app-debug.apk
           ls -lh app/build/outputs/apk/debug/app-debug.apk
 
-      - name: Upload APK
+          if ! git diff --quiet origin/main...HEAD; then
+            git push origin HEAD:main
+          fi
+
+      - name: Upload verified APK
         uses: actions/upload-artifact@v4
         with:
           name: rss-money-manager-debug-apk
