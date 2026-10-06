@@ -69,22 +69,22 @@ jobs:
             python3 - <<'PY'
           import json, os
           from pathlib import Path
-          log = Path(".automation/build-"+os.environ["attempt"]+".log").read_text(errors="replace")[-30000:]
+          log = Path(".automation/build-"+os.environ["attempt"]+".log").read_text(errors="replace")[-20000:]
           files = []
-          for p in Path(".").rglob("*"):
-              if not p.is_file() or ".git" in p.parts or ".gradle" in p.parts or "build" in p.parts:
+          for p in Path("app/src").rglob("*"):
+              if not p.is_file() or ".git" in p.parts or ".gradle" in p.parts or "build" in p.parts or ".idea" in p.parts:
                   continue
               if p.suffix in {".kt",".java",".xml",".gradle",".kts",".properties",".toml"}:
                   try:
                       s=p.read_text(errors="replace")
-                      if len(s) <= 50000:
+                      if len(s) <= 30000:
                           files.append({"path":str(p),"content":s})
                   except Exception:
                       pass
           prompt = {
             "task":"Fix the Android project so assembleDebug succeeds. Return ONLY a valid unified git diff that can be applied with git apply. Do not change branding, package name, application behavior, or unrelated code. Make the smallest safe compile/build fix.",
             "build_log":log,
-            "files":files[:80]
+            "files":files[:50]
           }
           Path(".automation/prompt.json").write_text(json.dumps(prompt))
           PY
