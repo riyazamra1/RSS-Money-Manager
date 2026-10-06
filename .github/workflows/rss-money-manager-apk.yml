@@ -34,14 +34,24 @@ jobs:
           java-version: '17'
           cache: gradle
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Install Android SDK
-        run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
-
-      - name: Prepare
-        run: chmod +x gradlew
+      - name: Prepare Android SDK
+        run: |
+          set -e
+          if [ -d "/usr/local/lib/android/sdk" ]; then
+            SDK="/usr/local/lib/android/sdk"
+          elif [ -d "/opt/hostedtoolcache/android-sdk" ]; then
+            SDK="/opt/hostedtoolcache/android-sdk"
+          else
+            echo "::error::Android SDK was not found on the GitHub runner."
+            exit 1
+          fi
+          echo "ANDROID_HOME=$SDK" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$SDK" >> "$GITHUB_ENV"
+          echo "$SDK/platform-tools" >> "$GITHUB_PATH"
+          echo "$SDK/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
+          sdkmanager "platforms;android-36" "build-tools;36.0.0" || true
+          yes | sdkmanager --licenses >/dev/null 2>&1 || true
+          chmod +x gradlew
 
       - name: Build-test-fix-repeat
         env:
