@@ -113,8 +113,17 @@ class MainActivity : AppCompatActivity() {
         val toolbar = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = android.view.Gravity.CENTER_VERTICAL; minimumHeight = 64 }
         val back = TextView(this).apply { text = "‹"; textSize = 38f; gravity = android.view.Gravity.CENTER; setPadding(4, 0, 18, 0); isClickable = true; contentDescription = "Back" }
         val title = TextView(this).apply { text = if (existing == null) "Add Transaction" else "Edit Transaction"; textSize = 21f; setTypeface(typeface, android.graphics.Typeface.BOLD); layoutParams = LinearLayout.LayoutParams(0, -2, 1f) }
-        val save = TextView(this).apply { text = "SAVE"; textSize = 14f; setTypeface(typeface, android.graphics.Typeface.BOLD); setPadding(18, 12, 4, 12); isClickable = true }
-        toolbar.addView(back); toolbar.addView(title); toolbar.addView(save); content.addView(toolbar)
+        val deleteButton = TextView(this).apply {
+            text = if (existing != null) "DELETE" else ""
+            textSize = 13f
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setPadding(10, 12, 12, 12)
+            isClickable = existing != null
+            visibility = if (existing != null) View.VISIBLE else View.GONE
+            contentDescription = "Delete transaction"
+        }
+        val save = TextView(this).apply { text = "SAVE"; textSize = 14f; setTypeface(typeface, android.graphics.Typeface.BOLD); setPadding(12, 12, 4, 12); isClickable = true }
+        toolbar.addView(back); toolbar.addView(title); toolbar.addView(deleteButton); toolbar.addView(save); content.addView(toolbar)
         var selectedType = existing?.type ?: "Expense"
         val tabs = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(0, 4, 0, 16) }
         val incomeTab = entryTab("Income"); val expenseTab = entryTab("Expenses"); val transferTab = entryTab("Transfer")
@@ -169,6 +178,19 @@ class MainActivity : AppCompatActivity() {
         content.addView(tabs); content.addView(dateTime); content.addView(recurring); content.addView(countAmountRow); content.addView(total); content.addView(description); content.addView(addItemButton); content.addView(itemsSection); content.addView(itemsSummary); content.addView(category); content.addView(wallet); content.addView(fromWallet); content.addView(toWallet); content.addView(TextView(this).apply { text = "────────────────"; setPadding(0, 8, 0, 2) }); content.addView(memo); content.addView(photoButton)
         scroll.addView(content); page.addView(scroll, android.widget.FrameLayout.LayoutParams(-1, -1)); root.addView(page, android.view.ViewGroup.LayoutParams(-1, -1))
         fun closePage() { root.removeView(page) }; back.setOnClickListener { closePage() }
+        deleteButton.setOnClickListener {
+            if (editIndex >= 0 && editIndex < recentTransactions.size) {
+                recentTransactions.removeAt(editIndex)
+                recalculateFinancialState()
+                persistState()
+                renderDashboard()
+                renderTransactions()
+                renderAccounts()
+                closePage()
+                showScreen(binding.transactionsScreen)
+                Snackbar.make(binding.root, "Transaction deleted", Snackbar.LENGTH_SHORT).show()
+            }
+        }
         save.setOnClickListener {
             val desc = description.text.toString().trim(); if (desc.isEmpty()) { Snackbar.make(binding.root, "Enter a description", Snackbar.LENGTH_SHORT).show(); return@setOnClickListener }
             val timestamp = parseReportDate(dateTime.text.toString()); val transaction: Transaction
