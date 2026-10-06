@@ -54,6 +54,7 @@ jobs:
           success=0
 
           for attempt in 1 2 3; do
+            export attempt
             echo "=== RMM autonomous attempt $attempt/3 ==="
             if ./gradlew --no-daemon --stacktrace assembleDebug 2>&1 | tee ".automation/build-$attempt.log"; then
               success=1
@@ -87,8 +88,7 @@ jobs:
           }
           Path(".automation/prompt.json").write_text(json.dumps(prompt))
           PY
-            export attempt
-            python3 - <<'PY'
+              python3 - <<'PY'
           import json, os, urllib.request
           body=json.loads(open(".automation/prompt.json").read())
           req=urllib.request.Request(
