@@ -693,9 +693,21 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showReports() {
+        val root = binding.root as? android.view.ViewGroup ?: return
+        val page = android.widget.FrameLayout(this).apply {
+            setBackgroundColor(resolveThemeColor(android.R.attr.colorBackground))
+            elevation = 24f
+        }
+        val scroll = android.widget.ScrollView(this).apply { isFillViewport = true; clipToPadding = false }
+        val content = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        val toolbar = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = android.view.Gravity.CENTER_VERTICAL; minimumHeight = 64 }
+        val back = TextView(this).apply { text = "‹"; textSize = 38f; gravity = android.view.Gravity.CENTER; setPadding(4, 0, 18, 0); isClickable = true; contentDescription = "Back" }
+        val title = TextView(this).apply { text = "Reports & Statistics"; textSize = 21f; setTypeface(typeface, android.graphics.Typeface.BOLD); layoutParams = LinearLayout.LayoutParams(0, -2, 1f) }
+        toolbar.addView(back); toolbar.addView(title)
+        content.addView(toolbar)
         val box = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(24, 4, 24, 0)
+            setPadding(20, 4, 20, 24)
         }
         val period = dropdownField("Period", listOf("All time", "This month", "This year"), "All time")
         val summary = TextView(this).apply { textSize = 15f; setPadding(0, 12, 0, 8) }
@@ -734,7 +746,11 @@ class MainActivity : AppCompatActivity() {
         }
         period.setOnItemClickListener { _, _, _, _ -> refresh() }
         refresh()
-        MaterialAlertDialogBuilder(this).setTitle("Reports & Statistics").setView(box).setNegativeButton("Close", null).show()
+        content.addView(box)
+        scroll.addView(content)
+        page.addView(scroll, android.widget.FrameLayout.LayoutParams(-1, -1))
+        root.addView(page, android.view.ViewGroup.LayoutParams(-1, -1))
+        back.setOnClickListener { root.removeView(page) }
     }
 
     private fun parseReportDate(value: String): Long = try {
